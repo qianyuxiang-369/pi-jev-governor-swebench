@@ -1,0 +1,49 @@
+route      |           | phase=planning; tier=small | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+outcome    | planning  | correct (retry, correction 1/2) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+outcome    | planning  | correct (retry, correction 2/2) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+outcome    | planning  | settle (corrections budget exhausted) | 
+ok (48 entries)

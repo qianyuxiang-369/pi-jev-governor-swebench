@@ -1,0 +1,5 @@
+route      |           | phase=direct; tier=small | 
+permission |           | block (fail_closed, http_401) | http_401
+permission |           | block (fail_closed, http_401) | http_401
+outcome    | executing | settle (finish) | 
+ok (4 entries)

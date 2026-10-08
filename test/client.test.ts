@@ -147,6 +147,12 @@ describe("validateJevResponse", () => {
 			new JevError("invalid_score"),
 		)
 		expect(() => validateJevResponse({ quality: outcomeQualityQuestion }, { answers: scoreAnswer(4) })).not.toThrow()
+	// The API returns the probability-weighted expectation over levels, which
+	// is fractional whenever the level distribution is split.
+	expect(() => validateJevResponse({ quality: outcomeQualityQuestion }, { answers: scoreAnswer(3.9) })).not.toThrow()
+	expect(() => validateJevResponse({ quality: outcomeQualityQuestion }, { answers: scoreAnswer(Number.NaN) })).toThrowError(
+		new JevError("invalid_score"),
+	)
 	})
 
 	it("requires score probabilities to cover all levels", () => {

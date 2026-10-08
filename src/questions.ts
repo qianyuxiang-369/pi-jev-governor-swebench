@@ -14,7 +14,7 @@ export interface ChoiceQuestion {
 export interface ScoreQuestion {
 	type: "score"
 	instructions: string
-	/** Ordered levels; a valid score is an index into this array. */
+	/** Ordered levels; a valid score lies in [0, length) — the API returns the probability-weighted expectation over these levels. */
 	criteria: string[]
 }
 

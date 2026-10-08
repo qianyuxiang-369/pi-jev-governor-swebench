@@ -1,0 +1,10 @@
+## Summary
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Created `/tmp/pi-jev-acceptance/greet2.py` with `print("ready")` | ✅ File written successfully |
+| 2 | Verified file content via `read` | ✅ Content matches: `print("ready")` |
+| 3 | Ran `python3 greet2.py` | ✅ Output: `ready` |
+
+The script prints **ready** as expected. All steps complete and verified.
+----- pi exit code: 0

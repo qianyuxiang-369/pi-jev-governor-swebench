@@ -1,0 +1,2 @@
+Created `kept.txt` with content "ok".
+----- pi exit code: 0

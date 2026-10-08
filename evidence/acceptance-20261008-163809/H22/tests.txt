@@ -1,0 +1,24 @@
+
+> pi-jev@0.1.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /Users/xqy/Downloads/项目/pi-jev
+
+ ✓ test/questions.test.ts (8 tests) 3ms
+ ✓ test/log.test.ts (3 tests) 8ms
+ ✓ test/evidence.test.ts (16 tests) 15ms
+ ✓ test/outcome.test.ts (15 tests) 12ms
+ ✓ test/client.test.ts (27 tests) 24ms
+ ✓ test/permission.test.ts (23 tests) 28ms
+ ✓ test/state.test.ts (8 tests) 3ms
+ ✓ test/config.test.ts (15 tests) 5ms
+ ✓ test/route.test.ts (18 tests) 7ms
+ ✓ test/extension.test.ts (23 tests) 390ms
+ ✓ test/lifecycle.test.ts (2 tests) 159ms
+
+ Test Files  11 passed (11)
+      Tests  158 passed (158)
+   Start at  16:45:50
+   Duration  1.25s (transform 403ms, setup 0ms, collect 1.75s, tests 655ms, environment 1ms, prepare 837ms)
+

@@ -94,6 +94,12 @@ describe("judgeOutcome", () => {
 		)
 	})
 
+	it("rejects a planning transition on a LOW-CONFIDENCE finish (design §5: explicit AND high-confidence)", async () => {
+		const d = deps({ decide: vi.fn(async () => outcomeResponse("finish", 0.5)) })
+		const verdict = await judgeOutcome(taskContext({ phase: "planning" }), d)
+		expect(verdict).toEqual({ kind: "settle", reason: "low_confidence" })
+	})
+
 	it("corrects and continues on retry within budget", async () => {
 		const d = deps({ decide: vi.fn(async (_request: unknown) => outcomeResponse("retry", 0.9)) })
 		const verdict = await judgeOutcome(taskContext(), d)

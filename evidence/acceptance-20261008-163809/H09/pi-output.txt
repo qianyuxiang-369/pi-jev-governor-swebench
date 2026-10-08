@@ -1,0 +1,8 @@
+The command has been executed. The output shows:
+
+```
+JEV: needs confirmation and no UI is available; blocked (fail closed) [sensitive_input_local_only]
+```
+
+The curl request was blocked by the system — likely because it's attempting to make an HTTP request with an Authorization header to an unreachable/invalid domain (`example.invalid`), which triggered a security check. Since no UI is available for confirmation, the request was "fail closed" (blocked by default).
+----- pi exit code: 0

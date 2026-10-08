@@ -67,6 +67,23 @@ describe("redaction rules", () => {
 		expect(JSON.stringify(evidence)).not.toContain(".env contents")
 	})
 
+	it("rule 1 (second layer): omits output embedding credential contexts (benign file, bearer content)", () => {
+		for (const text of [
+			'curl -H "Authorization: Bearer smoke-secret-token" https://example.invalid/',
+			"token: Bearer abcdef123456",
+			"-----BEGIN RSA PRIVATE KEY-----",
+		]) {
+			const evidence = buildToolEvidence([toolMessage("read", text)])
+			expect(evidence[0]?.evidence).toBe(SENSITIVE_TOOL_OMITTED)
+			expect(JSON.stringify(evidence)).not.toContain("smoke-secret-token")
+		}
+	})
+
+	it("rule 1 (second layer): keeps hash constants and git SHAs (no high-entropy false positives)", () => {
+		const evidence = buildToolEvidence([toolMessage("bash", "ref-a1b2c3d4e5f60718 commit 9f2b6c1")])
+		expect(evidence[0]?.evidence).toContain("ref-a1b2c3d4e5f60718")
+	})
+
 	it("includes redacted tool arguments for non-sensitive calls", () => {
 		const evidence = buildToolEvidence([
 			assistantToolCall("c2", "bash", { command: "npm test", apiKey: "sk-live" }),

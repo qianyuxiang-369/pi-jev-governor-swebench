@@ -1,0 +1,6 @@
+route      |           | phase=direct; tier=small | 
+permission |           | block (fail_closed) | 
+permission |           | block (fail_closed) | 
+permission |           | block (fail_closed) | 
+outcome    | executing | settle (finish) | 
+ok (5 entries)

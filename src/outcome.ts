@@ -182,8 +182,11 @@ export async function judgeOutcome(task: OutcomeTaskContext, deps: OutcomeDeps):
 		confidence: actionAnswer.confidence,
 	}
 
-	if (judged.action === "finish" || judged.confidence < deps.config.outcomeConfidence) {
-		const lowConfidence = judged.action !== "finish"
+	// Design §5: only an explicit AND high-confidence finish may transition
+	// from planning to executing — a low-confidence finish must settle too.
+	const belowThreshold = judged.confidence < deps.config.outcomeConfidence
+	if (judged.action === "finish" || belowThreshold) {
+		const lowConfidence = judged.action !== "finish" || belowThreshold
 		const why = lowConfidence
 			? `confidence ${judged.confidence.toFixed(2)} < ${deps.config.outcomeConfidence}; ${task.phase === "planning" ? "rejecting plan transition" : "settling without correction"}`
 			: "finish"

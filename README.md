@@ -1,5 +1,7 @@
 # pi-jev
 
+English | [简体中文](README.zh-CN.md)
+
 A [pi](https://pi.dev) package that routes four coding-agent decisions through the JEV Decisions API:
 
 | Decision | pi event | Result |
@@ -27,17 +29,25 @@ Try a local checkout without installing:
 pi -e ./pi-jev
 ```
 
-Requires pi 0.87 or later. `@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent` are peer dependencies supplied by pi.
+Requires pi 0.87.1 — the validated anchor: all unit tests and the acceptance evidence in [`evidence/`](evidence) were produced against it. Later releases, including pi 1.x, are untested and may change the extension API. `@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent` are peer dependencies supplied by pi.
 
 ## Configure
 
-At minimum, configure the JEV credential and one pi model for each tier:
+At minimum, configure the JEV credential and one pi model for each tier. The repo keeps local configuration in a git-ignored `.env.local` (template: [`.env.local.example`](.env.local.example)) and provides [`scripts/run.sh`](scripts/run.sh), which sources it and launches pi with the extension:
+
+```bash
+cp .env.local.example .env.local   # fill in your keys and models
+./scripts/run.sh                   # from any scratch project directory
+```
+
+Manual equivalent:
 
 ```bash
 export PI_JEV_API_KEY="$OPENROUTER_API_KEY"
-export PI_JEV_MODEL_SMALL="anthropic:claude-haiku-4-5"
-export PI_JEV_MODEL_NORMAL="anthropic:claude-sonnet-4-5"
-export PI_JEV_MODEL_STRONG="anthropic:claude-opus-4-6"
+export PI_JEV_MODEL_SMALL="openrouter:qwen/qwen3.7-flash"
+export PI_JEV_MODEL_NORMAL="openrouter:qwen/qwen3.7-plus"
+export PI_JEV_MODEL_STRONG="openrouter:qwen/qwen3.7-max"
+pi -e ./pi-jev
 ```
 
 Model references use `provider:modelId` and split on the first colon.
@@ -48,7 +58,7 @@ Model references use `provider:modelId` and split on the first colon.
 | `PI_JEV_URL` | `https://openrouter.ai/api/alpha/decisions` | JEV endpoint |
 | `PI_JEV_API_KEY` | required | API credential |
 | `PI_JEV_MODEL` | `typesafe/jev-1.13` | Decision model |
-| `PI_JEV_TIMEOUT_MS` | `3000` | Total deadline across an optional retry, 1–60000 ms |
+| `PI_JEV_TIMEOUT_MS` | `3000` | Total deadline across an optional retry, 1–60000 ms. The hosted OpenRouter endpoint commonly answers in 2–4 s; `10000` is a practical value there |
 | `PI_JEV_MODEL_SMALL` | required | `provider:modelId` |
 | `PI_JEV_MODEL_NORMAL` | required | `provider:modelId` |
 | `PI_JEV_MODEL_STRONG` | required | `provider:modelId` |
@@ -135,6 +145,8 @@ The plugin sends the minimum evidence needed for each decision:
 
 Credential detection is intentionally narrow: Authorization/Bearer headers, credential-shaped `KEY=value` contexts, private-key headers, and configured secret literals. Broad entropy matching is not used because hashes and git SHAs are common in legitimate commands.
 
+Tool output that embeds a credential context (a `Bearer`/`Authorization` header or a private-key block) is omitted wholesale, so a benign read of an innocently-named file cannot leak a token through outcome evidence. Purely high-entropy strings — git SHAs, hash constants — are kept.
+
 Values under sensitive keys are replaced with `[redacted]`; configured secret literals are scrubbed again after serialization. Evidence over 96,000 characters is rejected instead of silently trimmed. Client errors contain only reason enums and never include provider response bodies, URLs, or credentials.
 
 ### Decision logs
@@ -163,7 +175,17 @@ npm test
 
 Tests include pure decision logic, extension wiring, parallel permission confirmations, branch recovery, log permissions, and a real public-API agent lifecycle using pi's faux provider. The lifecycle regression verifies that an assistant-ending settle preview may report `canContinue=false` while a returned `custom_message + continue` still starts the next provider turn after pi recomputes the final context.
 
-See [docs/design.md](docs/design.md) for the v3 specification and [scripts/smoke.md](scripts/smoke.md) for manual acceptance.
+### Acceptance testing
+
+Beyond unit tests, an automated acceptance harness exercises the plugin end-to-end: real pi, real agent models, and a deterministic local JEV mock that can script any answer (`ask`, sequential `retry→finish`, budget exhaustion) or inject faults (5xx, timeouts, garbage) per decision kind. Each case leaves per-case evidence (model output, decision log, the exact requests the mock received) and a summary `RESULTS.md`:
+
+```bash
+./scripts/run-acceptance.sh    # 22 cases; requires .env.local and pi on PATH
+```
+
+Interactive TUI behavior (confirmation dialogs, status bar, session resume) is covered by the manual screenshot protocol in [docs/acceptance-tests.md](docs/acceptance-tests.md), which also maps every case to the [scripts/smoke.md](scripts/smoke.md) checklist.
+
+See [docs/design.md](docs/design.md) for the v3 specification, [docs/acceptance-tests.md](docs/acceptance-tests.md) for the acceptance protocol, and [scripts/smoke.md](scripts/smoke.md) for the original manual checklist.
 
 ## License
 

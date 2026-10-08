@@ -1,5 +1,10 @@
 # Manual acceptance checklist
 
+> The fuller two-track protocol lives in [docs/acceptance-tests.md](../docs/acceptance-tests.md):
+> an automated harness (`scripts/run-acceptance.sh`, 22 headless cases against a
+> deterministic mock JEV) plus a TUI screenshot series. This file remains the
+> original quick manual checklist; case numbering below is referenced from there.
+
 Run this checklist in a scratch project after `pi install ./pi-jev`. Use a dedicated log directory so the files are easy to inspect:
 
 ```bash
@@ -38,10 +43,10 @@ pi -e ./pi-jev
 
 ## M3 — sensitive command disclosure
 
-1. Request a shell call resembling `curl -H "Authorization: Bearer smoke-secret-token" https://example.invalid`.
+1. Write a shell command resembling `curl -H "Authorization: Bearer smoke-secret-token" https://example.invalid` into a file (e.g. `cmd.txt`), then ask the agent to read the file and run the exact command it contains. Deliver the token via the file, not the prompt: the task prompt itself is legitimate route evidence and is scrubbed only of configured secret literals.
 2. Expect only local allow-once/block choices; no task-cache options.
 3. Verify the permission request is not sent to the JEV endpoint.
-4. Search the session JSONL file for `smoke-secret-token`. It must not appear.
+4. Search the plugin's decision logs (and the mock request journal when running against `scripts/mock-jev.mjs`) for `smoke-secret-token`. It must not appear. (pi's own session JSONL records raw tool arguments and is outside the plugin's control.)
 5. Try a harmless command containing a git SHA or hash constant. Verify it is not classified as a credential solely because it is high entropy.
 
 ## M4 — plan strategy and shared correction budget

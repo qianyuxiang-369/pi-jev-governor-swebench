@@ -1,0 +1,11 @@
+route      |           | phase=planning; tier=small | 
+outcome    | planning  | correct (retry, correction 1/2) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+outcome    | planning  | settle (finish) | 
+permission |           | allow (jev) | 
+permission |           | allow (jev) | 
+outcome    | executing | correct (retry, correction 2/2) | 
+permission |           | allow (jev) | 
+outcome    | executing | settle (finish) | 
+ok (10 entries)

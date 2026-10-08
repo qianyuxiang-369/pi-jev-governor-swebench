@@ -21,6 +21,14 @@ export interface EvidenceContextMessage {
 export const SENSITIVE_TOOL_PATTERN = /(?:\.env\b|credentials|\.pem\b|\.key\b|id_rsa)/i
 export const SENSITIVE_KEY_PATTERN = /api.?key|authorization|password|secret|access.?token/i
 export const SENSITIVE_TOOL_OMITTED = "Sensitive tool evidence omitted"
+/**
+ * Content-level credential contexts for the evidence second layer: tool
+ * OUTPUT containing these is omitted wholesale. Narrow by design (same
+ * philosophy as permission sensitive-command detection) — no context-free
+ * high-entropy rules, so git SHAs, hash constants and base64 stay safe.
+ */
+export const SENSITIVE_CONTENT_PATTERN =
+	/-----BEGIN [A-Z ]*PRIVATE KEY-----|\bbearer\s+[A-Za-z0-9._~+/-]{8,}|\b(?:authorization|proxy-authorization)\s*:/i
 export const MAX_CONTEXT_CHARS = 96_000
 export const TEXT_TRUNCATE_CHARS = 2_000
 export const TOOL_JSON_TRUNCATE_CHARS = 4_000
@@ -151,8 +159,13 @@ export function buildToolEvidence(messages: readonly EvidenceContextMessage[]): 
 			failed: message.isError === true,
 		}
 		const serialized = truncateText(stableStringify(redactSensitiveKeys(payload)), TOOL_JSON_TRUNCATE_CHARS)
-		// Second layer: output text that itself looks sensitive.
-		const evidence = argsSensitive || SENSITIVE_TOOL_PATTERN.test(serialized) ? SENSITIVE_TOOL_OMITTED : serialized
+		// Second layer: output text that itself looks sensitive — either a
+		// sensitive path/name or an embedded credential context (a benign read
+		// of an innocently-named file can still surface a bearer token).
+		const evidence =
+			argsSensitive || SENSITIVE_TOOL_PATTERN.test(serialized) || SENSITIVE_CONTENT_PATTERN.test(serialized)
+				? SENSITIVE_TOOL_OMITTED
+				: serialized
 		return { tool, status: message.isError === true ? "failed" : "ok", evidence }
 	})
 }

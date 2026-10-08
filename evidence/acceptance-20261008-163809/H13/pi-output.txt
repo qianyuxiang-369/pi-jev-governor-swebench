@@ -1,0 +1,10 @@
+**Verification Result:**
+
+| Check | Status |
+|-------|--------|
+| Script exists at `greet3.py` | ✅ |
+| Output is exactly `ready` | ✅ |
+| Exit code is 0 (success) | ✅ |
+
+The deliverable is complete: `greet3.py` prints `ready` and runs without errors.
+----- pi exit code: 0

@@ -226,7 +226,7 @@ v3 只提供四个用户选择：
 | `git diff --stat` | 仅显式启用 | 默认关闭，不发送 diff 内容 |
 | API key | 否 | 只进入 Authorization header；正文和日志擦除 |
 
-敏感命令检测从窄规则开始：`Authorization`/`Bearer`、常见 `KEY=value` 凭据上下文、私钥头、已知配置 secret 字面量。不得用无上下文的广义高熵规则，以免把 git SHA、哈希常量或普通 base64 误判为凭据。
+敏感命令检测从窄规则开始：`Authorization`/`Bearer`、常见 `KEY=value` 凭据上下文、私钥头、已知配置 secret 字面量。不得用无上下文的广义高熵规则，以免把 git SHA、哈希常量或普通 base64 误判为凭据。证据第二层（输出文本检测）使用同一组窄凭据上下文模式：工具输出内嵌 `Bearer`/`Authorization` 头或私钥头时整条省略；纯高熵字符串（git SHA、哈希常量）不算凭据。
 
 证据保护：
 
@@ -260,7 +260,7 @@ v3 只提供四个用户选择：
 客户端使用原生 `fetch` 和显式 type guard：
 
 - 校验每个问题都有匹配类型的答案；
-- choice 必须属于 criteria；score 必须是合法整数；
+- choice 必须属于 criteria；score 必须是 `[0, 档位数)` 内的有限数（实测 Decisions API 返回各档概率加权的期望值，可为小数，如 `score 3.9` + `P(3)=0.06, P(4)=0.93`）；
 - confidence 必须在 `[0,1]`；概率键必须完全匹配且总和误差不超过 0.02；
 - 禁止 HTTP redirect，避免 Authorization header 泄漏；
 - 429、500、502、503、524、529 和一次瞬态 transport failure 最多重试一次；

@@ -1,0 +1,8 @@
+route      |           | phase=direct; tier=small | 
+permission |           | allow (jev) | 
+permission |           | block (hard_deny) | 
+permission |           | allow (jev) | 
+permission |           | allow (jev) | 
+permission |           | allow (jev) | 
+outcome    | executing | settle (outcome request failed: transport_or_schema_error) | transport_or_schema_error
+ok (7 entries)

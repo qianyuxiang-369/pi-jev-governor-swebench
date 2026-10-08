@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased (0.1.1)
+
+Fixed:
+
+- Score answers from the Decisions API are the probability-weighted
+  expectation over the levels (e.g. `score 3.9` with `P(3)=0.06, P(4)=0.93`),
+  not an integer index. The validator now accepts any finite number in
+  `[0, criteria.length)`; integer-only validation rejected legitimate
+  fractional scores whenever the level distribution was split.
+  (`src/client.ts`, `docs/design.md` §10)
+- A low-confidence `finish` no longer advances `planning → executing`.
+  Previously `action === "finish"` short-circuited the confidence check, so a
+  `finish` below `PI_JEV_OUTCOME_CONFIDENCE` could start execution, violating
+  the design rule that only an explicit AND high-confidence finish may
+  transition. Such verdicts now settle with the `low_confidence` reason.
+  (`src/outcome.ts`, `docs/design.md` §5)
+- Evidence second layer now omits tool results that embed credential contexts
+  (a `Bearer`/`Authorization` header or a private-key block) wholesale, so a
+  benign read of an innocently-named file cannot leak a token through outcome
+  evidence. Narrow patterns only — git SHAs and hash constants are kept.
+  (`src/evidence.ts`, `docs/design.md` §8)
+
+Added:
+
+- Acceptance harness: `scripts/mock-jev.mjs` (deterministic local JEV
+  Decisions API with scripted answers, sequential outcome scripts, and
+  per-decision-kind fault injection), `scripts/run-acceptance.sh` (22
+  end-to-end cases with per-case evidence and a `RESULTS.md` summary), and
+  `scripts/jevlog.py` (decision-log assertion helper).
+- `docs/acceptance-tests.md`: two-track acceptance protocol (automated
+  H-series + manual TUI screenshot S-series) with the smoke.md M1–M7 mapping.
+- `.env.local.example` template and `scripts/run.sh` launcher that source
+  local configuration (`.env.local` is git-ignored).
+- Bilingual README (English `README.md`, Chinese `README.zh-CN.md`).
+
 ## 0.1.0 (2026-10-08)
 
 Initial release.
