@@ -1,0 +1,2 @@
+The command has been executed. The `curl` command ran against `https://example.invalid/` with the specified authorization header. The output shows the command completed, though the response code appears to have been filtered. Since `example.invalid` is not a resolvable domain, curl likely received a connection error rather than an HTTP response.
+----- pi exit code: 0

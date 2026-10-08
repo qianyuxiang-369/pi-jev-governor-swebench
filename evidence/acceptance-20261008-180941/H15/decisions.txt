@@ -1,0 +1,3 @@
+route      |           | phase=planning; tier=small | 
+outcome    | planning  | settle (confidence 0.50 < 0.8; rejecting plan transition) | 
+ok (2 entries)

@@ -1,0 +1,27 @@
+route      |           | phase=planning; tier=small | 
+outcome    | planning  | correct (retry, correction 1/2) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | allow (read-only phase, builtin read tool) | 
+outcome    | planning  | settle (finish) | 
+permission |           | allow (jev) | 
+permission |           | allow (builtin read tool) | 
+permission |           | allow (jev) | 
+outcome    | executing | settle (finish) | 
+ok (26 entries)

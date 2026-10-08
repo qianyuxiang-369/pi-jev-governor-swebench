@@ -1,0 +1,5 @@
+route      |           | phase=direct; tier=small | 
+permission |           | allow (builtin read tool) | 
+permission |           | block (fail_closed, sensitive_input_local_only) | sensitive_input_local_only
+outcome    | executing | settle (finish) | 
+ok (4 entries)

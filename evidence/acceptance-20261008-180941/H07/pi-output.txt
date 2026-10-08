@@ -1,0 +1,8 @@
+The file was **not created**. The write operation was blocked by the Jet Engine Validation (JEV) system with the message:
+
+> `JEV: needs confirmation and no UI is available; blocked (fail closed)`
+
+This means the action required user confirmation but since no UI is available in this context, it fail-closed (denied the request). 
+
+Interesting choice of filename — `blocked.txt`!
+----- pi exit code: 0

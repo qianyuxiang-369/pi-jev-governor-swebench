@@ -1,0 +1,24 @@
+
+> pi-jev-governor@0.1.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /Users/xqy/Downloads/项目/pi-jev
+
+ ✓ test/config.test.ts (15 tests) 4ms
+ ✓ test/evidence.test.ts (16 tests) 10ms
+ ✓ test/permission.test.ts (23 tests) 12ms
+ ✓ test/log.test.ts (3 tests) 18ms
+ ✓ test/outcome.test.ts (15 tests) 16ms
+ ✓ test/client.test.ts (27 tests) 63ms
+ ✓ test/questions.test.ts (8 tests) 3ms
+ ✓ test/state.test.ts (8 tests) 3ms
+ ✓ test/route.test.ts (18 tests) 6ms
+ ✓ test/extension.test.ts (23 tests) 423ms
+ ✓ test/lifecycle.test.ts (2 tests) 167ms
+
+ Test Files  11 passed (11)
+      Tests  158 passed (158)
+   Start at  18:17:24
+   Duration  1.13s (transform 469ms, setup 0ms, collect 1.77s, tests 726ms, environment 1ms, prepare 1.02s)
+

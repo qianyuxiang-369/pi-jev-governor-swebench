@@ -1,0 +1,9 @@
+## Summary
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Created `greet.py` with `print("ready")` | File written to `/tmp/pi-jev-acceptance/greet.py` |
+| 2 | Ran `python3 greet.py` | Output: `ready` ✅ |
+
+**Verification:** stdout matched the expected output exactly — the word `ready` with no extra text. Plan complete.
+----- pi exit code: 0

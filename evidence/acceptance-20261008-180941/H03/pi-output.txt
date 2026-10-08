@@ -1,0 +1,2 @@
+Done! Created `/private/tmp/pi-jeV-acceptance/kept.txt` with content `ok`.
+----- pi exit code: 0

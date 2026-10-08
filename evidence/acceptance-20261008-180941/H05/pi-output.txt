@@ -1,0 +1,6 @@
+The exact contents of `note.txt` are:
+
+```
+note contents 42
+```
+----- pi exit code: 0

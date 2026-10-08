@@ -50,7 +50,7 @@ Try without installing:
 pi -e ./pi-jev-governor
 ```
 
-> **Requires pi 0.87.1** — the validated anchor. All unit tests and acceptance evidence in [`evidence/`](evidence) were produced against it. Later releases (including pi 1.x) are untested. `@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent` are peer dependencies supplied by pi.
+> **Requires pi 0.87.1+** — both 0.87.1 and 1.1.0 pass the full acceptance suite (54 assertions each; evidence in [`evidence/acceptance-20261008-163809`](evidence/acceptance-20261008-163809) for 0.87.1 and [`evidence/acceptance-20261008-180941`](evidence/acceptance-20261008-180941) for 1.1.0). `@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent` are peer dependencies supplied by pi.
 
 ### Configure
 
@@ -250,7 +250,7 @@ pi install ./pi-jev-governor
 pi -e ./pi-jev-governor
 ```
 
-> **需要 pi 0.87.1** ——已验证的基准版本。全部单元测试与 [`evidence/`](evidence) 中的验收证据均基于此版本。更高版本（含 pi 1.x）未经测试。`@earendil-works/pi-ai` 与 `@earendil-works/pi-coding-agent` 是 peer 依赖，由 pi 提供。
+> **需要 pi 0.87.1+** ——0.87.1 与 1.1.0 均通过完整验收（各 54 项断言；证据分别在 0.87.1 的 [`evidence/acceptance-20261008-163809`](evidence/acceptance-20261008-163809) 与 1.1.0 的 [`evidence/acceptance-20261008-180941`](evidence/acceptance-20261008-180941)）。`@earendil-works/pi-ai` 与 `@earendil-works/pi-coding-agent` 是 peer 依赖，由 pi 提供。
 
 ### 配置
 

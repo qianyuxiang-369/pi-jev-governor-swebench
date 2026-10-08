@@ -1,0 +1,10 @@
+route      |           | phase=planning; tier=small | 
+outcome    | planning  | correct (retry, correction 1/2) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+permission |           | block (phase_gate) | 
+outcome    | planning  | correct (retry, correction 2/2) | 
+permission |           | block (phase_gate) | 
+permission |           | allow (read-only phase, allowlisted command) | 
+outcome    | planning  | settle (corrections budget exhausted) | 
+ok (9 entries)

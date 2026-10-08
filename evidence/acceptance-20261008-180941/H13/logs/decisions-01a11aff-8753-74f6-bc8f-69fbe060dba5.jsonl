@@ -1,0 +1,12 @@
+{"decisionKind":"route","taskId":"tmuzdn98q-ht83gb","questions":["plan_strategy","tier"],"answers":{"plan_strategy":{"type":"choice","value":"plan_then_execute","confidence":0.95},"tier":{"type":"choice","value":"small","confidence":0.95}},"effective":"phase=planning; tier=small","timestamp":"2026-10-08T10:11:56.426Z"}
+{"decisionKind":"outcome","taskId":"tmuzdn98q-ht83gb","correctionPhase":"planning","questions":["action","issue","quality"],"effective":"correct (retry, correction 1/2)","answers":{"action":{"type":"choice","value":"retry","confidence":0.9},"issue":{"type":"choice","value":"missing_verification","confidence":0.9},"quality":{"type":"score","value":2,"confidence":0.9}},"latencyMs":5,"usage":{"cost":0.000001,"input_tokens":10,"output_tokens":5},"timestamp":"2026-10-08T10:12:01.096Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"block (phase_gate)","timestamp":"2026-10-08T10:12:04.295Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"block (phase_gate)","timestamp":"2026-10-08T10:12:06.650Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"allow (read-only phase, allowlisted command)","timestamp":"2026-10-08T10:12:09.614Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"allow (read-only phase, allowlisted command)","timestamp":"2026-10-08T10:12:13.857Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"block (phase_gate)","timestamp":"2026-10-08T10:12:18.814Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"block (phase_gate)","timestamp":"2026-10-08T10:12:24.464Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"allow (read-only phase, allowlisted command)","timestamp":"2026-10-08T10:12:26.472Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"block (phase_gate)","timestamp":"2026-10-08T10:12:36.510Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"block (phase_gate)","timestamp":"2026-10-08T10:12:39.088Z"}
+{"decisionKind":"permission","taskId":"tmuzdn98q-ht83gb","questions":["action"],"effective":"allow (read-only phase, allowlisted command)","timestamp":"2026-10-08T10:12:41.296Z"}

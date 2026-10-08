@@ -1,0 +1,7 @@
+route      |           | phase=planning; tier=small | 
+permission |           | block (phase_gate) | 
+outcome    | planning  | settle (finish) | 
+permission |           | allow (jev) | 
+permission |           | allow (jev) | 
+outcome    | executing | settle (finish) | 
+ok (6 entries)

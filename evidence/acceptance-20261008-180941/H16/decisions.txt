@@ -1,0 +1,4 @@
+route      |           | phase=planning; tier=small | 
+permission |           | block (phase_gate) | 
+outcome    | planning  | settle (outcome request failed: http_500) | http_500
+ok (3 entries)
