@@ -1,0 +1,29 @@
+{
+	"name": "pi-jev",
+	"version": "0.1.0",
+	"description": "JEV decision points (plan strategy, model tier routing, permission adjudication, outcome judgment) as a pi coding agent package.",
+	"license": "MIT",
+	"type": "module",
+	"keywords": [
+		"pi-package"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/CHANGE-ME/pi-jev.git"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-ai": "0.87.1",
+		"@earendil-works/pi-coding-agent": "0.87.1",
+		"@types/node": "^24.0.0",
+		"typescript": "^5.9.0",
+		"vitest": "^3.2.0"
+	}
+}
