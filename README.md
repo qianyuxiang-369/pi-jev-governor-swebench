@@ -1,8 +1,8 @@
-# pi-jev
+# pi-jev-governor
 
 English | [简体中文](README.zh-CN.md)
 
-A [pi](https://pi.dev) package that routes four coding-agent decisions through the JEV Decisions API:
+A governor for the [pi](https://pi.dev) coding agent: it routes four coding-agent decisions through the JEV Decisions API.
 
 | Decision | pi event | Result |
 |---|---|---|
@@ -18,15 +18,15 @@ The package is loaded directly by pi. It has no bundled runtime dependencies and
 ## Install
 
 ```bash
-pi install git:github.com/<user>/pi-jev@v0.1.0
-pi install npm:pi-jev@0.1.0
-pi install ./pi-jev
+pi install git:github.com/qianyuxiang-369/pi-jev-governor@v0.1.0
+pi install npm:pi-jev-governor@0.1.0
+pi install ./pi-jev-governor
 ```
 
 Try a local checkout without installing:
 
 ```bash
-pi -e ./pi-jev
+pi -e ./pi-jev-governor
 ```
 
 Requires pi 0.87.1 — the validated anchor: all unit tests and the acceptance evidence in [`evidence/`](evidence) were produced against it. Later releases, including pi 1.x, are untested and may change the extension API. `@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent` are peer dependencies supplied by pi.
@@ -47,7 +47,7 @@ export PI_JEV_API_KEY="$OPENROUTER_API_KEY"
 export PI_JEV_MODEL_SMALL="openrouter:qwen/qwen3.7-flash"
 export PI_JEV_MODEL_NORMAL="openrouter:qwen/qwen3.7-plus"
 export PI_JEV_MODEL_STRONG="openrouter:qwen/qwen3.7-max"
-pi -e ./pi-jev
+pi -e ./pi-jev-governor
 ```
 
 Model references use `provider:modelId` and split on the first colon.
@@ -127,7 +127,7 @@ Human choices are task-scoped:
 
 The exact-call and tool caches are cleared on the next task and on session-tree navigation. Sensitive inputs only offer allow-once or block.
 
-pi may issue sibling tool calls concurrently. pi-jev serializes permission decisions and confirmation dialogs to avoid UI and cache races; it does not serialize the tools after approval. A `terminate` result is not treated as a guarantee that already-dispatched siblings cannot run, so each call must be safe on its own verdict.
+pi may issue sibling tool calls concurrently. pi-jev-governor serializes permission decisions and confirmation dialogs to avoid UI and cache races; it does not serialize the tools after approval. A `terminate` result is not treated as a guarantee that already-dispatched siblings cannot run, so each call must be safe on its own verdict.
 
 ## Privacy and data disclosure
 

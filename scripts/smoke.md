@@ -5,7 +5,7 @@
 > deterministic mock JEV) plus a TUI screenshot series. This file remains the
 > original quick manual checklist; case numbering below is referenced from there.
 
-Run this checklist in a scratch project after `pi install ./pi-jev`. Use a dedicated log directory so the files are easy to inspect:
+Run this checklist in a scratch project after `pi install ./pi-jev-governor`. Use a dedicated log directory so the files are easy to inspect:
 
 ```bash
 export PI_JEV_API_KEY=...
@@ -13,7 +13,7 @@ export PI_JEV_MODEL_SMALL="provider:small-id"
 export PI_JEV_MODEL_NORMAL="provider:normal-id"
 export PI_JEV_MODEL_STRONG="provider:strong-id"
 export PI_JEV_LOG_DIR=/tmp/pi-jev-smoke-logs
-pi -e ./pi-jev
+pi -e ./pi-jev-governor
 ```
 
 `/jev` prints the exact `decisions-<session-id>.jsonl` path.
@@ -78,5 +78,5 @@ pi -e ./pi-jev
 1. Start two sessions. Verify each writes a distinct `decisions-<session-id>.jsonl` file.
 2. Verify the log directory mode is `0700` and each file mode is `0600` on POSIX.
 3. Enable `PI_JEV_OUTCOME_GIT_DIFF=true`; verify only a diff stat is sent. Leave it unset and verify no git stat is collected.
-4. Fresh clone and run `pi install ./pi-jev`; verify the extension loads.
+4. Fresh clone and run `pi install ./pi-jev-governor`; verify the extension loads.
 5. Run `npm run typecheck` and `npm test`; both must pass.

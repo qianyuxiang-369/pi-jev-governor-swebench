@@ -1,4 +1,4 @@
-# pi-jev 验收测试协议
+# pi-jev-governor 验收测试协议
 
 完整的验收测试分两轨：
 
@@ -24,7 +24,7 @@ node scripts/mock-jev.mjs &                         # 终端 1
 cd /tmp/pi-jev-scratch 2>/dev/null || mkdir -p /tmp/pi-jev-scratch && cd /tmp/pi-jev-scratch
 # --model 必须显式指定：否则 pi 用自己的默认模型（可能未配置鉴权）。
 # 建议 normal 档起步——small/strong 路由都能看到模型切换，展示效果最完整。
-PI_JEV_URL=http://127.0.0.1:8787 /path/to/pi-jev/scripts/run.sh --model qwen/qwen3.7-plus   # 终端 2
+PI_JEV_URL=http://127.0.0.1:8787 /path/to/pi-jev-governor/scripts/run.sh --model qwen/qwen3.7-plus   # 终端 2
 # （真实决策轨则不加 PI_JEV_URL 前缀，直接 scripts/run.sh --model qwen/qwen3.7-plus）
 ```
 
@@ -127,7 +127,7 @@ mock 的行为由 `/tmp/jev-control.json` 控制（改完即生效，无需重�
 
 ## 3. 未覆盖项（发布前处理）
 
-- **M7.4 fresh clone + `pi install ./pi-jev`**：需要干净环境与发布形态的包，留到打包发布时执行。
+- **M7.4 fresh clone + `pi install ./pi-jev-governor`**：需要干净环境与发布形态的包，留到打包发布时执行。
 - **M1.4 上下文窗口不足保留模型**：已由单测覆盖（`applyTierSwitch` 的 contextTokens 分支）；如需真实验证，配置小上下文目标模型并灌入长上下文后按 S03 方式截图。
 
 ## 附录：smoke.md M 项映射

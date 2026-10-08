@@ -1,8 +1,8 @@
-# pi-jev
+# pi-jev-governor
 
 [English](README.md) | 简体中文
 
-一个 [pi](https://pi.dev) 包，把编码代理的四个决策点路由到 JEV Decisions API：
+[pi](https://pi.dev) 编码代理的"治理器"（governor）：把编码代理的四个决策点路由到 JEV Decisions API。
 
 | 决策 | pi 事件 | 结果 |
 |---|---|---|
@@ -18,15 +18,15 @@
 ## 安装
 
 ```bash
-pi install git:github.com/<user>/pi-jev@v0.1.0
-pi install npm:pi-jev@0.1.0
-pi install ./pi-jev
+pi install git:github.com/qianyuxiang-369/pi-jev-governor@v0.1.0
+pi install npm:pi-jev-governor@0.1.0
+pi install ./pi-jev-governor
 ```
 
 不安装、直接试用本地检出：
 
 ```bash
-pi -e ./pi-jev
+pi -e ./pi-jev-governor
 ```
 
 需要 pi 0.87.1——这是已验证的基准版本：全部单元测试与 [`evidence/`](evidence) 中的验收证据均基于它产生。更高版本（含 pi 1.x）未经测试，扩展 API 可能有变动。`@earendil-works/pi-ai` 与 `@earendil-works/pi-coding-agent` 是 peer 依赖，由 pi 提供。
@@ -47,7 +47,7 @@ export PI_JEV_API_KEY="$OPENROUTER_API_KEY"
 export PI_JEV_MODEL_SMALL="openrouter:qwen/qwen3.7-flash"
 export PI_JEV_MODEL_NORMAL="openrouter:qwen/qwen3.7-plus"
 export PI_JEV_MODEL_STRONG="openrouter:qwen/qwen3.7-max"
-pi -e ./pi-jev
+pi -e ./pi-jev-governor
 ```
 
 模型引用格式为 `provider:modelId`，按第一个冒号切分。
@@ -127,7 +127,7 @@ tier 切换在以下情况保留当前模型：目标模型无法解析、不在
 
 exact-call 与 tool 两级缓存在下一个任务和会话树导航时清空。敏感输入只提供"仅允许一次"或"阻止"。
 
-pi 可能并发发出兄弟工具调用。pi-jev 将权限裁决与确认对话框串行化以避免 UI 和缓存竞争；批准之后的工具执行不串行化。`terminate` 结果不保证已派发的兄弟调用不会运行，因此每个调用必须凭自身裁决保证安全。
+pi 可能并发发出兄弟工具调用。pi-jev-governor 将权限裁决与确认对话框串行化以避免 UI 和缓存竞争；批准之后的工具执行不串行化。`terminate` 结果不保证已派发的兄弟调用不会运行，因此每个调用必须凭自身裁决保证安全。
 
 ## 隐私与数据披露
 

@@ -1,12 +1,12 @@
 #!/bin/sh
-# 用 pi-jev 扩展启动 pi，并在启动前 source 本地环境变量。
+# 用 pi-jev-governor 扩展启动 pi，并在启动前 source 本地环境变量。
 #
 # 用法（在任意草稿项目目录下）：
-#   /Users/xqy/Downloads/项目/pi-jev/scripts/run.sh [额外的 pi 参数...]
+#   <仓库路径>/scripts/run.sh [额外的 pi 参数...]
 # 例如全旁路冒烟：
-#   /Users/xqy/Downloads/项目/pi-jev/scripts/run.sh --no-jev
+#   <仓库路径>/scripts/run.sh --no-jev
 # 交互使用建议显式指定 --model（否则 pi 用自己的默认模型，可能未配置鉴权）：
-#   /Users/xqy/Downloads/项目/pi-jev/scripts/run.sh --model qwen/qwen3.7-plus
+#   <仓库路径>/scripts/run.sh --model qwen/qwen3.7-plus
 #
 # 密钥只放在仓库根目录的 .env.local（已 gitignore）。
 

@@ -1,4 +1,4 @@
-# pi-jev 设计方案 v3
+# pi-jev-governor 设计方案 v3
 
 状态：已批准并实现  
 基准：pi 0.87.1  
@@ -6,7 +6,7 @@
 
 ## 1. 目标与边界
 
-`pi-jev` 是一个可独立安装的 pi package，在 pi 的扩展事件上实现四个决策点：
+`pi-jev-governor` 是一个可独立安装的 pi package，在 pi 的扩展事件上实现四个决策点：
 
 1. `plan_strategy`：当前任务是否需要只读规划阶段；
 2. `tier`：当前任务应使用哪个模型档位；
@@ -18,7 +18,7 @@
 项目结构：
 
 ```text
-pi-jev/
+pi-jev-governor/
 ├── extensions/jev.ts       # 扩展入口与生命周期编排
 ├── src/
 │   ├── client.ts           # JEV HTTP 客户端与响应校验
