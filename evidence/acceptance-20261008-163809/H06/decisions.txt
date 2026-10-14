@@ -1,4 +1,0 @@
-route      |           | phase=direct; tier=small | 
-permission |           | block (hard_deny) | 
-outcome    | executing | settle (finish) | 
-ok (3 entries)

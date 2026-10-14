@@ -4,4 +4,3 @@ dist/
 *.tsbuildinfo
 .DS_Store
 .env.local
-docs/demo/

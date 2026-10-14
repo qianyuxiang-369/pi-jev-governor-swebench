@@ -30,53 +30,22 @@ Fixed:
   skipped (`tier=<tier> (skipped: <reason>)` — e.g. `not_scoped`,
   `manual_override`) instead of logging the bare routed tier as if it had
   taken effect. (`extensions/jev.ts`)
-- README accuracy pass: the MATH-500 section now positions the benchmark as
-  evaluating the JEV-based three-tier routing design used by pi-jev-governor
-  and states that it covers model routing only — the plugin's planning,
-  permission, and outcome-governance features are outside the benchmark's
-  scope; the acceptance case count is 23 (H01–H22 plus the H20b variant); the
-  easy-tier share is phrased as ~22–23% of all problems; the pinned-install
-  example no longer cites a tag that does not exist yet. (`README.md`)
-- MATH-500 benchmark wording finalized across docs: the benchmark is described
-  as evaluating the JEV-based three-tier routing design used by
-  pi-jev-governor (fixed-model baseline comparison, model routing only),
-  replacing earlier wordings that attributed the benchmark to a specific
-  operating setup. (`README.md`, `README.zh-CN.md`,
-  `docs/math500-final-report-20261003.md`)
 
 Added:
 
-- Acceptance harness: `scripts/mock-jev.mjs` (deterministic local JEV
-  Decisions API with scripted answers, sequential outcome scripts, and
-  per-decision-kind fault injection), `scripts/run-acceptance.sh` (23
-  end-to-end cases — H01–H22 plus the H20b variant — with per-case evidence
-  and a `RESULTS.md` summary), and `scripts/jevlog.py` (decision-log
-  assertion helper).
-- `docs/acceptance-tests.md`: two-track acceptance protocol (automated
-  H-series + manual TUI screenshot S-series) with the smoke.md M1–M7 mapping.
 - `.env.local.example` template and `scripts/run.sh` launcher that source
   local configuration (`.env.local` is git-ignored).
 - Single bilingual `README.md` (English + 简体中文 with anchor navigation);
   `README.zh-CN.md` is a pointer stub.
 - README restructured as a project landing page: hero result line, project
-  status, workflow diagram for the four decision points, and a slimmed
-  MATH-500 section; new figures in `docs/assets/` (English and 简体中文
-  variants of the results card and workflow diagram, plus a cost-change chart
-  with the ±2.6% rerun-noise band). Reference SVG sources live in
-  `docs/assets/src/`.
+  status, workflow diagram for the four decision points.
 - README restructured to the final landing-page order: hero result card →
-  project status → benchmark → how-it-works (new detailed workflow diagram)
-  → demo → quick start → configuration → safety & privacy → development;
-  `README.md` is now English-only with the full 简体中文 version in
-  `README.zh-CN.md` (replacing the pointer stub); demo GIFs render as a 2×2
-  grid; the visible configuration is slimmed to the key variables with the
-  full reference in `<details>`; the earlier four-node workflow figures were
-  retired in favor of `docs/assets/governor-workflow.png`. (`README.md`,
-  `README.zh-CN.md`, `CHANGELOG.md`, `docs/assets/`)
-- MATH-500 results card updated to the unified design
-  (`docs/assets/math500-results.png`), now shared by the English and 简体中文
-  READMEs; the earlier per-language results-card renders and their SVG sources
-  were retired.
+  project status → how-it-works → demo → quick start → configuration →
+  safety & privacy → development; `README.md` is now English-only with the
+  full 简体中文 version in `README.zh-CN.md` (replacing the pointer stub);
+  demo GIFs render as a 2×2 grid; the visible configuration is slimmed to
+  the key variables with the full reference in `<details>`.
+  (`README.md`, `README.zh-CN.md`, `CHANGELOG.md`)
 
 ## 0.1.0 (2026-10-08)
 

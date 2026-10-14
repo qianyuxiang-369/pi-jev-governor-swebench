@@ -1,2 +1,0 @@
-Created `hello.txt` with the content "hi".
------ pi exit code: 0

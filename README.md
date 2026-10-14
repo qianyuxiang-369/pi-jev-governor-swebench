@@ -8,9 +8,6 @@ A decision governance layer for the [pi](https://pi.dev) coding agent, powered b
 
 Pi JEV Governor brings fast, typed, confidence-aware decisions into the pi agent lifecycle — deciding how a task should start, which model should handle it, whether tool actions may proceed, and whether the task is actually ready to finish.
 
-**Up to 45% lower model cost on MATH-500, with no accuracy loss.**<br>
-Jev decision overhead **1.4–2.6%** of cost · decision latency **P50 0.6–0.7 s**
-
 [![CI](https://github.com/Pyromind-Dynamics/pi-jev-governor/actions/workflows/ci.yml/badge.svg)](https://github.com/Pyromind-Dynamics/pi-jev-governor/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![pi 0.87.1+](https://img.shields.io/badge/pi-0.87.1%2B-6f42c1)
@@ -23,10 +20,6 @@ Jev decision overhead **1.4–2.6%** of cost · decision latency **P50 0.6–0.7
 
 </div>
 
-<p align="center">
-  <img src="docs/assets/math500-results.png" alt="MATH-500: one router, four allocation strategies — cost changes from −45% to +51%, with no accuracy loss" width="860">
-</p>
-
 ## 🚦 Project Status
 
 - ✅ Plan strategy routing: `direct` / `plan_only` / `plan_then_execute`
@@ -35,50 +28,13 @@ Jev decision overhead **1.4–2.6%** of cost · decision latency **P50 0.6–0.7
 - ✅ Layered permission governance
 - ✅ Outcome validation and automatic correction
 - ✅ Structured decision logging
-- ✅ MATH-500 routing benchmark of the JEV routing mechanism
-- ✅ Pi 0.87.1 and 1.1.0 acceptance-tested (54 assertions each)
 - 🚧 npm release
 - 🚧 Broader coding-task benchmarks
 - 🚧 Additional routing policies
 
-## 📊 Benchmark Results
-
-The MATH-500 benchmark evaluates the JEV-based three-tier routing design used by Pi JEV Governor: tasks are routed to easy, main, or hard and compared against a fixed-model baseline. The evaluation uses 458 text-only problems from HuggingFaceH4/MATH-500 (42 image-based problems excluded). The benchmark focuses on model routing; the plugin's planning, permission, and outcome-governance features are outside this benchmark's scope.
-
-Across the four configurations, accuracy was maintained or improved, while cost ranged from **−45% to +51%** depending on how execution models were assigned to the routing tiers. The router itself is cheap; the dominant factor is which model it sends the work to.
-
-<p align="center">
-  <img src="docs/assets/math500-cost-change-en.png" alt="Cost change vs the fixed-model baseline: −45% (main tier to flash), −13%, −1.4% (within the ±2.6% rerun noise band), +51% (capability upgrade)" width="860">
-</p>
-
-| Baseline Config | Jev Routing Config | Accuracy Change | Cost Change |
-|---|---|---|---|
-| qwen3.8-27b | easy: flash / main: 27b / hard: max | 97.4% → 98.3% | −1.4% |
-| qwen3.8-27b | easy: 27b / main: flash / hard: max | 98.0% → 99.1% | **−45%** |
-| qwen3.8-flash | easy: flash / main: 27b / hard: max | 91.5% → 98.7% | +51% |
-| qwen3.7-plus | easy: flash / main: plus / hard: max | 98.3% → 98.7% | −13% |
-
-**Key findings**
-
-- Up to 45% lower cost with no accuracy loss.
-- Routing policy matters: placing the cheap model in the dominant main tier creates much larger savings than using it only for easy.
-- Price spread matters: larger cost differences between tier models create larger potential savings.
-- The +51% configuration is intentional: it upgrades the dominant main tier to a stronger model, trading budget for capability.
-- JEV overhead is small: 1.4–2.6% of total cost, with 0.6–0.7 s P50 decision latency.
-
-> The third configuration's larger accuracy gain (+7.2 pp) mainly reflects its much weaker starting baseline.
->
-> Cost is reported at full price; cache discounts are excluded.
->
-> 📊 Full report and methodology: [docs/math500-final-report-20261003.md](docs/math500-final-report-20261003.md)
-
 ## 🧠 How It Works
 
 Pi JEV Governor places JEV at four bounded decision points in the agent lifecycle, while deterministic rules and human fallback remain responsible for hard safety boundaries.
-
-<p align="center">
-  <img src="docs/assets/governor-workflow.png" alt="Governor workflow: initial JEV routing (plan strategy + model tier) → execution with a per-tool-call permission gate → outcome judge, with safety &amp; fallback and a task-wide budget of at most 2 automatic corrections" width="1000">
-</p>
 
 ### Four decision points
 
@@ -158,7 +114,7 @@ export PI_JEV_MODEL_STRONG="openrouter:qwen/qwen3.7-max"
 
 Try without installing: `pi -e ./pi-jev-governor`. The repo also ships a `.env.local` template and launcher (`./scripts/run.sh`) — see the Configuration section below.
 
-> Both pi 0.87.1 and 1.1.0 pass the full acceptance suite (54 assertions each; evidence in [`evidence/acceptance-20261008-163809`](evidence/acceptance-20261008-163809) for 0.87.1 and [`evidence/acceptance-20261008-180941`](evidence/acceptance-20261008-180941)). `@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent` are peer dependencies supplied by pi. Pinned installs (`@<tag>`) and npm publishing become available with the first release.
+> `@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent` are peer dependencies supplied by pi. Pinned installs (`@<tag>`) and npm publishing become available with the first release.
 
 ## ⚙️ Configuration
 
@@ -280,21 +236,9 @@ npm test
 
 Tests cover decision logic, extension wiring, parallel permission confirmations, branch recovery, log permissions, and a real public-API agent lifecycle using pi's faux provider.
 
-### Acceptance testing
-
-An automated acceptance harness exercises the plugin end-to-end: real pi, real agent models, and a deterministic local JEV mock. Each case leaves per-case evidence and a summary `RESULTS.md`:
-
-```bash
-./scripts/run-acceptance.sh    # 23 cases (H01–H22 plus the H20b variant); requires .env.local and pi on PATH
-```
-
-Interactive TUI behavior is covered by the manual screenshot protocol in [docs/acceptance-tests.md](docs/acceptance-tests.md).
-
 ## 📚 Documentation
 
 - [docs/design.md](docs/design.md) — v3 design specification
-- [docs/acceptance-tests.md](docs/acceptance-tests.md) — acceptance test protocol
-- [scripts/smoke.md](scripts/smoke.md) — manual smoke checklist
 
 ## License
 

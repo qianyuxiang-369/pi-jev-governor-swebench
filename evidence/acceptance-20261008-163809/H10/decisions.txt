@@ -1,4 +1,0 @@
-route      |           | phase=direct; tier=small | 
-permission |           | allow (jev) | 
-outcome    | executing | settle (finish) | 
-ok (3 entries)

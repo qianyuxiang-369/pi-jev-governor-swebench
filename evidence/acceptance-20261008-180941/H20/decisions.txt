@@ -1,3 +1,0 @@
-route      |           | phase=direct; tier=small | 
-outcome    | executing | settle (finish) | 
-ok (2 entries)

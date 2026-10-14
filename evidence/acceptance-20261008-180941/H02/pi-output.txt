@@ -1,2 +1,0 @@
-Created `strong.txt` with the content `ok`.
------ pi exit code: 0

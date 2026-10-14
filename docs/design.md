@@ -31,7 +31,7 @@ pi-jev-governor/
 │   ├── route.ts            # 规划策略与模型路由
 │   └── state.ts            # 可持久化任务状态
 ├── test/                   # 单元、扩展和公开 API 生命周期测试
-├── scripts/smoke.md        # 人工验收清单
+├── scripts/run.sh          # 启动脚本
 └── docs/design.md          # 本设计
 ```
 
