@@ -601,7 +601,12 @@ def analyze_probe_output(variant: str, returncode: int | None, out: str,
         except Exception:
             jev_parse_errors += 1
             continue
-        if isinstance(record, dict) and record.get("decisionKind") == "route":
+        if isinstance(record, dict) and (record.get("decisionKind") == "route"
+                or (record.get("decisionKind") == "governor"
+                    and record.get("effective") == "enabled"
+                    and isinstance(record.get("decisions"), dict)
+                    and record["decisions"].get("planStrategy") is False
+                    and record["decisions"].get("tier") is False)):
             route_records += 1
     if variant == "governor":
         if route_records == 0:
@@ -910,6 +915,8 @@ def parse_pi_log(path: Path) -> dict:
 def parse_decisions(path: Path) -> dict:
     stats: dict = {
         "route": 0, "permission": 0, "outcome": 0,
+        "governor": 0, "route_disabled": 0, "route_requests": 0, "route_raw_tiers": {},
+        "prompt_lengths": [], "prompt_truncated": 0,
         "permission_allow": 0, "permission_block": 0,
         "route_tiers": {}, "route_effective_tiers": {}, "route_kept": 0,
         "route_skips": {}, "route_degradations": {},
@@ -925,6 +932,20 @@ def parse_decisions(path: Path) -> dict:
             stats["parse_errors"] += 1
             continue
         kind = record.get("decisionKind")
+        if (kind == "governor" and record.get("effective") == "enabled"
+                and isinstance(record.get("decisions"), dict)):
+            stats["governor"] += 1
+            if (record["decisions"].get("planStrategy") is False
+                    and record["decisions"].get("tier") is False):
+                stats["route_disabled"] += 1
+        if kind == "route_request":
+            stats["route_requests"] += 1
+            raw_tier = ((record.get("answers") or {}).get("tier") or {}).get("value")
+            if raw_tier in TIERS:
+                stats["route_raw_tiers"][raw_tier] = stats["route_raw_tiers"].get(raw_tier, 0) + 1
+            if isinstance(record.get("promptLength"), int):
+                stats["prompt_lengths"].append(record["promptLength"])
+                stats["prompt_truncated"] += int(record.get("promptTruncated") is True)
         if kind in ("route", "permission", "outcome"):
             stats[kind] += 1
         if kind == "permission":
@@ -979,7 +1000,8 @@ def classify_status(variant: str, timed_out: bool, patch: str,
     """Verdict for one attempt. Validity gates run before outcome gates.
 
     A governor measurement is only valid with a parseable decision record
-    (route >= 1), no extension errors, no unparsable decision lines and no
+    (route >= 1, or explicit lifecycle evidence with both route decisions
+    disabled), no extension errors, no unparsable decision lines and no
     artifact collection errors; a vanilla measurement needs pi output at all.
     Invalid measurements map to infrastructure statuses (retryable, never in
     preds) and are checked before the timeout/exit-code branches, so a
@@ -991,12 +1013,13 @@ def classify_status(variant: str, timed_out: bool, patch: str,
     if variant == "governor":
         # Extension load failures are silently skipped by pi, and a degraded
         # config (unparsable tiers/URL/thresholds) still writes jev-state but
-        # no decision records at all (log() bails out early): the route record
-        # is the only reliable proof that the governor actually took effect.
+        # no decision records at all (log() bails out early). A route summary
+        # is required unless lifecycle evidence explicitly disables both route
+        # decisions; a startup marker with routing enabled is insufficient.
         if log_stats.get("extension_errors"):
             return "extension_bypass", notes + \
                 ["extension error(s) in run.log: governor run invalid"]
-        if jev_stats.get("route", 0) == 0:
+        if jev_stats.get("route", 0) == 0 and jev_stats.get("route_disabled", 0) == 0:
             return "extension_bypass", notes + \
                 ["no route decision records: governor did not take effect"]
         if jev_stats.get("parse_errors", 0):

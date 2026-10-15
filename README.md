@@ -45,7 +45,7 @@ Pi JEV Governor places JEV at four bounded decision points in the agent lifecycl
 | Permission | each tool call | rule → JEV → human / fail-closed |
 | Outcome | before settle | `finish` / `retry` / `replan` |
 
-- `plan_strategy` and `tier` share a single request. A `plan_then_execute` task makes an additional Outcome request to validate the plan before execution.
+- `plan_strategy` and `tier` use independent parallel requests. With Outcome enabled, a `plan_then_execute` task makes an additional Outcome request to validate the plan before execution.
 - Planning revisions and execution corrections share a hard maximum of **2** automatic corrections.
 - Loaded directly by pi. **No bundled runtime dependencies. Does not modify pi itself.**
 

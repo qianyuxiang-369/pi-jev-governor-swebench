@@ -254,8 +254,17 @@ describe("createJevClient transport", () => {
 		})
 		const body = JSON.parse(String(init?.body))
 		expect(body.model).toBe("typesafe/jev-1.13")
-		expect(body.state).toEqual({ task_prompt: "hello" })
+		expect(body.state).toMatchObject({ task_prompt: "hello", _jev_request_nonce: expect.any(String) })
+		expect(Object.keys(body.state)[0]).toBe("_jev_request_nonce")
+		expect(body).not.toHaveProperty("nonce")
+		expect(body.questions.strategy.instructions).toContain(body.state._jev_request_nonce)
 		expect(body.questions.strategy.type).toBe("choice")
+		await client.decide(REQUEST)
+		const nextBody = JSON.parse(String(fetchImpl.mock.calls[1]![1]?.body))
+		expect(nextBody.state._jev_request_nonce).not.toBe(body.state._jev_request_nonce)
+		expect(nextBody.questions.strategy.instructions).not.toBe(body.questions.strategy.instructions)
+		expect(REQUEST.state).toEqual({ task_prompt: "hello" })
+		expect(REQUEST.questions.strategy.instructions).toBe(planStrategyQuestion.instructions)
 	})
 
 	it("retries exactly once on retryable statuses, then succeeds", async () => {

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -29,6 +29,10 @@ const ENV_KEYS = [
 	"PI_JEV_LOG_DIR",
 	"PI_JEV_PLAN_AUTO_EXECUTE",
 	"PI_JEV_ENABLED",
+	"PI_JEV_ENABLE_PLAN_STRATEGY",
+	"PI_JEV_ENABLE_TIER",
+	"PI_JEV_ENABLE_PERMISSION",
+	"PI_JEV_ENABLE_OUTCOME",
 ] as const
 
 class MockApi {
@@ -279,6 +283,87 @@ afterEach(async () => {
 })
 
 describe("extension wiring", () => {
+	it.each([
+		["PI_JEV_ENABLE_PLAN_STRATEGY", "plan_strategy"],
+		["PI_JEV_ENABLE_TIER", "tier"],
+		["PI_JEV_ENABLE_PERMISSION", "permission"],
+		["PI_JEV_ENABLE_OUTCOME", "outcome"],
+	])("disables %s without suppressing the other three decisions", async (key, disabled) => {
+		process.env[key] = "0"
+		const api = await loadExtension()
+		const fetchMock = stubJeVFetch({})
+		vi.stubGlobal("fetch", fetchMock)
+		await api.emit("session_start", {})
+		await api.emit("before_agent_start", { prompt: "implement fix" })
+		await api.emit("tool_call", { toolName: "edit", input: { path: "module.py", edits: [] } })
+		await api.emit("agent_before_settle", settleEvent())
+		const called = fetchMock.mock.calls.map(([, init]) => {
+			const q = JSON.parse(String(init?.body)).questions
+			if (q.plan_strategy) return "plan_strategy"
+			if (q.tier) return "tier"
+			return q.issue ? "outcome" : "permission"
+		})
+		expect(called).toHaveLength(3)
+		expect(called).not.toContain(disabled)
+		for (const kind of ["plan_strategy", "tier", "permission", "outcome"].filter((x) => x !== disabled)) expect(called).toContain(kind)
+	})
+
+	it("executes an accepted plan with outcome disabled, then settles without judging", async () => {
+		process.env["PI_JEV_ENABLE_OUTCOME"] = "0"
+		const api = await loadExtension()
+		const fetchMock = stubJeVFetch({ plan: "plan_then_execute" })
+		vi.stubGlobal("fetch", fetchMock)
+		await api.emit("session_start", {})
+		await api.emit("before_agent_start", { prompt: "implement fix" })
+		expect(api.activeTools).not.toContain("edit")
+		const execution = await api.emit("agent_before_settle", settleEvent())
+		expect(execution).toMatchObject({ continue: true, entries: expect.arrayContaining([
+			expect.objectContaining({ data: expect.objectContaining({ phase: "executing" }) }),
+		]) })
+		expect(api.activeTools).toContain("edit")
+		expect(await api.emit("agent_before_settle", settleEvent())).not.toHaveProperty("continue", true)
+		expect(fetchMock).toHaveBeenCalledTimes(2)
+	})
+
+	it.each(["plan_only", "direct"])("does not execute beyond %s when outcome is disabled", async (plan) => {
+		process.env["PI_JEV_ENABLE_OUTCOME"] = "0"
+		const api = await loadExtension()
+		vi.stubGlobal("fetch", stubJeVFetch({ plan }))
+		await api.emit("before_agent_start", { prompt: "task" })
+		expect(await api.emit("agent_before_settle", settleEvent())).not.toHaveProperty("continue", true)
+	})
+
+	it("preserves raw low-confidence answers separately from effective routing", async () => {
+		const api = await loadExtension()
+		vi.stubGlobal("fetch", stubJeVFetch({ plan: "plan_then_execute", planConfidence: 0.6, tier: "strong", tierConfidence: 0.5 }))
+		await api.emit("session_start", {})
+		await api.emit("before_agent_start", { prompt: "x".repeat(2001) })
+		await vi.waitFor(async () => {
+			const logs = (await readFile(join(tempLogDir, "decisions-mock-session.jsonl"), "utf8")).trim().split("\n").map((s) => JSON.parse(s))
+			expect(logs).toHaveLength(4)
+			const raw = logs.filter((r) => r.decisionKind === "route_request")
+			expect(raw.find((r) => r.questions[0] === "plan_strategy")).toMatchObject({ answers: { plan_strategy: { value: "plan_then_execute", confidence: 0.6 } }, promptLength: 2001, promptTruncated: true })
+			expect(raw.find((r) => r.questions[0] === "tier")).toMatchObject({ answers: { tier: { value: "strong", confidence: 0.5 } } })
+			expect(logs.find((r) => r.decisionKind === "route")).toMatchObject({ answers: { plan_strategy: { value: "direct" }, tier: { value: "normal" } } })
+		})
+	})
+
+	it("emits only lifecycle evidence with all decisions disabled", async () => {
+		for (const key of ENV_KEYS.filter((k) => k.startsWith("PI_JEV_ENABLE_"))) process.env[key] = "0"
+		const api = await loadExtension()
+		const fetchMock = stubJeVFetch({})
+		vi.stubGlobal("fetch", fetchMock)
+		await api.emit("session_start", {})
+		await api.emit("before_agent_start", { prompt: "task" })
+		expect(await api.emit("tool_call", { toolName: "bash", input: { command: "git status" } })).toBeUndefined()
+		await api.emit("agent_before_settle", settleEvent())
+		expect(fetchMock).not.toHaveBeenCalled()
+		await vi.waitFor(async () => {
+			const logs = (await readFile(join(tempLogDir, "decisions-mock-session.jsonl"), "utf8")).trim().split("\n").map((s) => JSON.parse(s))
+			expect(logs).toEqual([expect.objectContaining({ decisionKind: "governor", effective: "enabled" })])
+		})
+	})
+
 	it("registers the flag, the /jev command, and all four hooks", async () => {
 		const api = await loadExtension()
 		expect(api.flagDefaults.has("no-jev")).toBe(true)

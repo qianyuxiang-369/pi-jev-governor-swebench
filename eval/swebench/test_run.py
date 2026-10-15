@@ -232,6 +232,13 @@ class TestAnalyzeProbe:
     def test_good_governor_probe_passes(self):
         assert run.analyze_probe_output("governor", 0, GOOD_PROBE_OUTPUT, GOOD_JEV_TEXT) == []
 
+    def test_probe_accepts_lifecycle_only_for_explicit_route_ablation(self):
+        for disabled in (True, False):
+            lifecycle = json.dumps({"decisionKind": "governor", "effective": "enabled",
+                "decisions": {"planStrategy": not disabled, "tier": not disabled}})
+            problems = run.analyze_probe_output("governor", 0, GOOD_PROBE_OUTPUT, lifecycle)
+            assert bool(problems) is not disabled
+
     def test_good_vanilla_probe_passes_without_jev_records(self):
         out = GOOD_PROBE_OUTPUT.replace('{"type":"custom_entry","customType":"jev-state"}', "")
         assert run.analyze_probe_output("vanilla", 0, out) == []
@@ -466,6 +473,37 @@ def route(effective, tier=None) -> str:
 
 
 class TestParseDecisions:
+    def test_split_route_requests_do_not_duplicate_summary_counts(self, tmp_path):
+        p = tmp_path / "decisions.jsonl"
+        p.write_text("\n".join(json.dumps(row) for row in [
+            {"decisionKind": "route_request", "questions": ["plan_strategy"],
+             "promptLength": 2001, "promptTruncated": True,
+             "usage": {"cost": 0.001}, "latencyMs": 20},
+            {"decisionKind": "route_request", "questions": ["tier"],
+             "answers": {"tier": {"value": "strong"}},
+             "usage": {"cost": 0.002}, "latencyMs": 30},
+            {"decisionKind": "route", "answers": {"tier": {"value": "normal"}},
+             "effective": "phase=direct; tier=kept"},
+        ]) + "\n")
+        stats = run.parse_decisions(p)
+        assert stats["route"] == 1 and stats["route_requests"] == 2
+        assert stats["route_tiers"] == {"normal": 1}
+        assert stats["route_raw_tiers"] == {"strong": 1}
+        assert stats["route_kept"] == 1
+        assert stats["jev_cost_usd"] == 0.003
+        assert stats["jev_latency_ms"] == 50
+        assert stats["prompt_lengths"] == [2001] and stats["prompt_truncated"] == 1
+
+    def test_explicit_route_ablation_is_valid_but_missing_enabled_route_is_not(self, tmp_path):
+        p = tmp_path / "decisions.jsonl"
+        for disabled in (True, False):
+            p.write_text(json.dumps({"decisionKind": "governor", "effective": "enabled",
+                "decisions": {"planStrategy": not disabled, "tier": not disabled,
+                              "permission": False, "outcome": False}}) + "\n")
+            stats = run.parse_decisions(p)
+            status, _ = run.classify_status("governor", False, "patch", log_stats(), stats)
+            assert status == ("success" if disabled else "extension_bypass")
+
     def test_route_tier_distribution(self, tmp_path):
         p = tmp_path / "decisions.jsonl"
         p.write_text("\n".join([

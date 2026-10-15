@@ -28,7 +28,7 @@ import { permissionQuestion } from "./questions.ts"
 import type { UnattendedPolicy } from "./config.ts"
 import type { JevPhase } from "./state.ts"
 import { lstatSync, realpathSync } from "node:fs"
-import { isAbsolute, join, relative, sep } from "node:path"
+import { isAbsolute, join, relative, resolve, sep } from "node:path"
 
 export interface PermissionCall {
 	toolName: string
@@ -437,7 +437,14 @@ async function adjudicateDecide(
 			return adjudicateUnattended(call, {
 				sensitive,
 				cwd: deps.cwd ?? process.cwd(),
-				onLog: deps.onLog,
+				onLog: (entry) => deps.onLog({
+					...entry,
+					answers: response?.answers.action?.type === "choice"
+						? { action: { type: "choice", value: response.answers.action.choice, confidence: response.answers.action.confidence } }
+						: {},
+					latencyMs: response?.latencyMs,
+					usage: response?.usage,
+				}),
 				taskId: task.taskId,
 			})
 		}
@@ -446,7 +453,10 @@ async function adjudicateDecide(
 			"fail_closed",
 			`JEV: needs confirmation and no UI is available; blocked (fail closed) [${failReason}]`,
 		)
-		log(`block (fail_closed, ${failReason})`, { error: failReason })
+		log(`block (fail_closed, ${failReason})`, {
+			error: failReason,
+			...(response !== undefined ? { latencyMs: response.latencyMs, usage: response.usage } : {}),
+		})
 		return verdict
 	}
 
@@ -465,11 +475,11 @@ async function adjudicateDecide(
 
 	if (choice !== undefined && choice !== "block") {
 		const effectiveChoice = sensitive ? "allow_once" : choice
-		log(`allow (human, ${effectiveChoice})`)
+		log(`allow (human, ${effectiveChoice})`, response === undefined ? {} : { latencyMs: response.latencyMs, usage: response.usage })
 		return { block: false, source: `human_${effectiveChoice}` }
 	}
 	const verdict = BLOCK("human_block", "Blocked by user")
-	log("block (human)")
+	log("block (human)", response === undefined ? {} : { latencyMs: response.latencyMs, usage: response.usage })
 	return verdict
 }
 
@@ -614,9 +624,18 @@ function isPathInRepo(filePath: string, cwd: string): boolean {
 		return false
 	}
 	if (/^[A-Za-z]:/.test(filePath)) return false
-	const segments = filePath.split(/[\\/]+/).filter((segment) => segment !== "" && segment !== ".")
+	let segments = filePath.split(/[\\/]+/).filter((segment) => segment !== "" && segment !== ".")
 	if (segments.some((segment) => segment === ".." || segment === ".git")) return false
-	const base = filePath.startsWith("/") ? "/" : repoRoot
+	let base = filePath.startsWith("/") ? "/" : repoRoot
+	// Trust the caller's cwd alias (e.g. macOS /var -> /private/var), but still
+	// reject every symlink below that root, including dangling file symlinks.
+	if (filePath.startsWith("/")) {
+		const rel = relative(resolve(cwd), filePath)
+		if (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) {
+			base = repoRoot
+			segments = rel.split(sep).filter(Boolean)
+		}
+	}
 	let current = base
 	for (let i = 0; i < segments.length; i += 1) {
 		current = join(current, segments[i]!)

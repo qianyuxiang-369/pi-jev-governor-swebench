@@ -184,6 +184,38 @@ describe("layer 1 — deterministic rules", () => {
 })
 
 describe("layer 2 — JEV adjudication", () => {
+	it.each(["ask", "allow"])("keeps request cost when %s falls back to benchmark policy", async (choice) => {
+		const response = { ...permissionResponse(choice, 0.5), usage: { cost: 0.123, input_tokens: 100, output_tokens: 10 } }
+		const d = deps({ decide: vi.fn(async () => response), unattendedPolicy: "benchmark", cwd: CWD })
+		const verdict = await adjudicate(bash("python -m pytest -x"), taskContext(), d)
+		expect(verdict.source).toBe("unattended_allow")
+		expect(d.onLog).toHaveBeenCalledTimes(1)
+		expect(d.onLog).toHaveBeenCalledWith(expect.objectContaining({ usage: response.usage, latencyMs: response.latencyMs, answers: { action: { type: "choice", value: choice, confidence: 0.5 } } }))
+	})
+
+	it("keeps request cost when benchmark fallback blocks the operation", async () => {
+		const response = { ...permissionResponse("ask", 0.95), usage: { cost: 0.01 } }
+		const d = deps({ decide: vi.fn(async () => response), unattendedPolicy: "benchmark", cwd: CWD })
+		expect((await adjudicate(bash("curl https://example.com"), taskContext(), d)).block).toBe(true)
+		expect(d.onLog).toHaveBeenCalledTimes(1)
+		expect(d.onLog).toHaveBeenCalledWith(expect.objectContaining({ usage: response.usage }))
+	})
+
+	it("accepts absolute repo paths through a cwd alias while rejecting symlinks below it", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "jev-alias-"))
+		try {
+			const alias = join(dir, "repo")
+			symlinkSync(CWD, alias)
+			const d = deps({ decide: vi.fn(async () => permissionResponse("ask", 0.95)), unattendedPolicy: "benchmark", cwd: alias })
+			expect((await adjudicate({ toolName: "write", input: { path: join(alias, "new.py"), content: "x" } }, taskContext(), d)).block).toBe(false)
+			const link = join(CWD, "review-dangling-link")
+			symlinkSync(join(dir, "outside.py"), link)
+			try {
+				expect((await adjudicate({ toolName: "write", input: { path: join(alias, "review-dangling-link"), content: "x" } }, taskContext(), d)).block).toBe(true)
+			} finally { rmSync(link) }
+		} finally { rmSync(dir, { recursive: true, force: true }) }
+	})
+
 	it("allows when JEV says allow with sufficient confidence", async () => {
 		const d = deps({ decide: vi.fn(async () => permissionResponse("allow", 0.95)) })
 		const verdict = await adjudicate(bash("cargo build"), taskContext(), d)

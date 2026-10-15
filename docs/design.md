@@ -110,9 +110,11 @@ abort、error、配置不可用等不能安全判定的 settle 路径恢复工�
 - `plan_strategy`：`direct`、`plan_only`、`plan_then_execute` —— 只判断执行结构（是否需要显式规划阶段）；
 - `tier`：`small`、`normal`、`strong` —— 只判断所需推理能力（调试深度、依赖交互、实现不确定性）。
 
-两个决策互不共享答案：workflow 分类不得影响难度分类（direct 但需 strong、multi-step 但只需 normal 都是合法组合）。任一侧失败只降级该侧（plan 侧回 direct、tier 侧保持当前模型），另一侧照常生效；延迟取两请求较慢者，用量合并后写入决策日志。
+两个决策互不共享答案：workflow 分类不得影响难度分类（direct 但需 strong、multi-step 但只需 normal 都是合法组合）。任一侧失败只降级该侧（plan 侧回 direct、tier 侧保持当前模型），另一侧照常生效；延迟和用量分别记在两条子请求日志中。
 
-决策日志每任务写三条：`plan_strategy` 与 `tier` 两条 raw 记录（各自 latency/usage/confidence/error，调用级证据——这是拆分的研究价值所在）加一条 summary（合并生效结果，不带 usage 防成本双计）。plan 记录另带 `promptTruncated` 标记（原始 prompt 超过 2000 字符截断时为 true），供 pilot 统计截断与路由失败的相关性。每次 decide 请求体含唯一 nonce，避免相同任务证据命中 provider 端 prompt cache 导致评测成本被低估。
+启用的路由子请求分别写 `decisionKind=route_request`，保留原始 choice、probabilities、confidence、latency、usage、error 和 degradedReason；另写一条 `decisionKind=route` summary，记录生效结果，不带 usage。关闭的子请求不调用、不记决策日志；两侧均关闭时也无 route summary。session_start 独立写 governor 生命周期记录及四个开关，供 runner 验证显式关闭路由的 ablation，不能用它替代启用路由时应有的 summary。每任务首条路由请求另记 promptLength 和 promptTruncated，供 pilot 联合判分结果分析截断影响。
+
+客户端使用官方支持的 state 和 questions.instructions，在两者前部加入每次调用独立的随机标记；重试沿用同一标记。不再发送未文档化的顶层 nonce。这会改变模型可见的证据和指令前缀，但不能保证禁用服务端固定系统前缀的缓存，更不能假定全价计费；成本仍按实际返回的 usage.cost 记录。接口依据：https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request 。
 
 低于 `PI_JEV_ROUTE_CONFIDENCE` 时：
 
@@ -327,7 +329,7 @@ decisions-<sanitized-session-id>.jsonl
 | `PI_JEV_ENABLE_PLAN_STRATEGY` | `true` | 决策点开关（P18）：`0`/`false` 完全跳过（无请求/无日志/无成本），plan 回退 `direct` |
 | `PI_JEV_ENABLE_TIER` | `true` | 同上；关闭时保持当前模型不切档 |
 | `PI_JEV_ENABLE_PERMISSION` | `true` | 同上；关闭时工具直接放行 |
-| `PI_JEV_ENABLE_OUTCOME` | `true` | 同上；关闭时自然 settle 不判定不纠正 |
+| `PI_JEV_ENABLE_OUTCOME` | `true` | 关闭时不判定不纠正；planning 仍按 planAutoExecute 转入 executing，执行完成后自然 settle |
 | `PI_JEV_LOG_DIR` | 平台状态目录 | 覆盖日志目录 |
 
 命令与界面：

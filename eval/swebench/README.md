@@ -423,6 +423,17 @@ governor 合计 $0.2450 vs vanilla $0.0151。注意：**本轮 governor 决策�
 
 **决策点独立开关（默认全开）**：`PI_JEV_ENABLE_PLAN_STRATEGY / PI_JEV_ENABLE_TIER / PI_JEV_ENABLE_PERMISSION / PI_JEV_ENABLE_OUTCOME`（0/false 关闭）。关闭 = 完全跳过（无请求、无日志、无成本）：plan→direct、tier→保持当前模型、permission→直接放行、outcome→自然 settle。与 `PI_JEV_UNATTENDED_POLICY` 组合可实现「只测决策点 X」的单变量 ablation。
 
-**JEV 请求 nonce 防缓存**：client.ts 的 decide 请求体加唯一 nonce——相同 task 证据的重复决策不再命中 provider 端 prompt cache，评测数据里 JEV 成本按全价如实记录（agent 主模型调用的缓存是真实降价，不动）。
+**P18 的 nonce 实现（已由下节修正）**：当时仅添加了顶层 nonce，不能证明它会进入模型提示或阻止缓存；不得据此声称 JEV 按全价计费。
 
 **验证**：tsc 0 错误、vitest 203 passed（+3：开关跳过/截断标记/开关解析）、py 124 passed；资产已重建（stamp = 本 commit）。
+
+### 5.17 决策消融、日志与成本修复（2026-10-15）
+
+- **outcome 开关独立**：关闭 outcome 只跳过远程判定和纠正；plan_then_execute 仍按 planAutoExecute（及交互确认）从 planning 转入 executing。plan_only 保持只读，执行完成后自然结束。
+- **原始回答与生效结果分开**：启用的 plan/tier 请求分别写 `route_request`，保留降级前的 choice、probabilities、confidence、latency、usage、error 和 degradedReason。`route` 只做一次生效汇总，不携带 usage；parser 分开统计 `route_requests`、`route_raw_tiers` 和生效分布，避免一次路由计三次。关闭的子请求不写决策日志；session_start 的 `governor` 记录单独保存开关状态，两项路由都明确关闭时允许用它验证扩展加载。
+- **截断分析**：每任务首个启用的路由请求保存 `promptLength` 和 `promptTruncated`；metadata 的 JEV 汇总含 `prompt_lengths`、`prompt_truncated`，可按 instance_id 联合判分结果分析。
+- **permission 费用不再丢失**：JEV 返回 ask/低置信度后，无论 benchmark 白名单放行还是阻止，都保留该次请求的回答、usage 和 latency。交互确认及 fail-closed 分支同样保留已返回的 usage；shadow override 不重复携带费用。
+- **模型可见的动态前缀**：删除顶层 nonce，在官方支持的 state 与 questions.instructions 前部放入随机标记，每次 decide 独立、重试沿用。此实现不能保证消除服务端固定系统前缀的缓存；费用以实际 `usage.cost` 为准，不推算全价。接口依据：[Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request)。
+- **macOS cwd 别名**：允许 cwd 自身的符号链接别名（如 /var → /private/var）；仓库内部的符号链接、悬空链接、越界路径和 .git 仍被拒绝。
+
+这些修改需要在 Linux 评测环境重新构建注入资产后再做 dry-run/smoke；本地单元测试通过不能替代真实容器和服务验证。

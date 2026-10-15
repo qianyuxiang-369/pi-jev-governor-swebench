@@ -10,6 +10,7 @@
  */
 
 import type { JevQuestion } from "./questions.ts"
+import { randomUUID } from "node:crypto"
 
 export interface JevChoiceAnswer {
 	type: "choice"
@@ -179,15 +180,25 @@ export function createJevClient(options: JevClientOptions): JevClient {
 	const doFetch = options.fetchImpl ?? fetch
 	return {
 		async decide(request: JevDecideRequest, externalSignal?: AbortSignal): Promise<JevResponse> {
+			// Use documented model-visible fields, not an unsupported top-level
+			// nonce. Prefix both evidence and question instructions because the
+			// gateway controls their final prompt ordering. This cannot disable
+			// a provider's cache of its own fixed system prefix.
+			const nonce = randomUUID()
+			const state = {
+				_jev_request_nonce: nonce,
+				...(isRecord(request.state)
+					? Object.fromEntries(Object.entries(request.state).filter(([key]) => key !== "_jev_request_nonce"))
+					: { evidence: request.state }),
+			}
+			const questions = Object.fromEntries(Object.entries(request.questions).map(([id, question]) => [id, {
+				...question,
+				instructions: `[Request ${nonce}; correlation metadata only, ignore when judging.]\n${question.instructions}`,
+			}]))
 			const body = JSON.stringify({
 				model: options.model,
-				state: request.state,
-				questions: request.questions,
-				// Cache-buster: repeated decisions over identical task evidence
-				// would otherwise hit provider-side prompt caches and understate
-				// the decision cost recorded in the evaluation data. Unique per
-				// call so every request is billed at the full rate.
-				nonce: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+				state,
+				questions,
 			})
 			const headers = {
 				"content-type": "application/json",

@@ -33,11 +33,12 @@ export interface RouteDecision {
 	latencyMs: number | undefined
 	usage: JevUsage | undefined
 	/** Raw call-level record for the plan_strategy request (log keeps it unmerged). */
-	planRequest: { latencyMs?: number; usage?: JevUsage; errorReason?: string; disabled: boolean }
+	planRequest: RouteAskResult
 	/** Raw call-level record for the tier request. */
-	tierRequest: { latencyMs?: number; usage?: JevUsage; errorReason?: string; disabled: boolean }
+	tierRequest: RouteAskResult
 	/** True when the original prompt exceeded the route truncation window. */
 	promptTruncated: boolean
+	promptLength: number
 }
 
 interface RouteAskResult {
@@ -46,6 +47,7 @@ interface RouteAskResult {
 	latencyMs: number | undefined
 	usage: JevUsage | undefined
 	disabled: boolean
+	degradedReason?: string
 }
 
 const DISABLED_ASK: RouteAskResult = { answer: undefined, errorReason: undefined, latencyMs: undefined, usage: undefined, disabled: true }
@@ -161,9 +163,10 @@ export async function decideRoute(
 		errorReason: failures.length > 0 ? failures.join("; ") : undefined,
 		latencyMs,
 		usage: mergeUsage(planResult.usage, tierResult.usage),
-		planRequest: { latencyMs: planResult.latencyMs, usage: planResult.usage, errorReason: planResult.errorReason, disabled: planResult.disabled },
-		tierRequest: { latencyMs: tierResult.latencyMs, usage: tierResult.usage, errorReason: tierResult.errorReason, disabled: tierResult.disabled },
+		planRequest: { ...planResult, degradedReason: degradations.find((reason) => reason.startsWith("plan_strategy")) },
+		tierRequest: { ...tierResult, degradedReason: degradations.find((reason) => reason.startsWith("tier")) },
 		promptTruncated,
+		promptLength: prompt.length,
 	}
 }
 

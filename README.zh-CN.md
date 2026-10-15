@@ -45,7 +45,7 @@ Pi JEV Governor 把 JEV 放在 agent 生命周期中四个有界的决策点上�
 | 权限 | 每次工具调用 | 规则 → JEV → 人工 / fail-closed |
 | 结果 | 交付前 | `finish` / `retry` / `replan` |
 
-- `plan_strategy` 和 `tier` 合并在一次请求中。`plan_then_execute` 任务在执行前会额外发起一次 Outcome 请求校验计划。
+- `plan_strategy` 和 `tier` 使用独立并行请求。Outcome 开启时，`plan_then_execute` 任务在执行前会额外发起一次 Outcome 请求校验计划。
 - 规划修订与执行纠正共享最多 **2 次**的硬上限修正预算。
 - 由 pi 直接加载，**无捆绑运行时依赖，不修改 pi 本身**。
 

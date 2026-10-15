@@ -90,6 +90,7 @@ describe("decideRoute", () => {
 		)
 		expect(decision.planStrategy).toBe("direct")
 		expect(decision.degradations.join(" ")).toContain("confidence")
+		expect(decision.planRequest.answer).toMatchObject({ choice: "plan_then_execute", confidence: 0.6 })
 	})
 
 	it("keeps the current model when tier confidence is below the threshold", async () => {
@@ -101,6 +102,7 @@ describe("decideRoute", () => {
 		)
 		expect(decision.switchTier).toBe(false)
 		expect(decision.tier).toBe("small")
+		expect(decision.tierRequest.answer).toMatchObject({ choice: "strong", confidence: 0.5 })
 	})
 
 	it("degrades fully (direct, keep model) when the request throws", async () => {

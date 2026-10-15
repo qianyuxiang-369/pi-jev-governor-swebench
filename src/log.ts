@@ -9,12 +9,13 @@ import { appendFile, chmod, mkdir } from "node:fs/promises"
 import { join } from "node:path"
 import type { JevUsage } from "./client.ts"
 
-export type DecisionKind = "route" | "permission" | "outcome"
+export type DecisionKind = "route" | "route_request" | "governor" | "permission" | "outcome"
 
 export interface DecisionAnswerSummary {
 	type: "choice" | "score"
 	value: string | number
 	confidence: number
+	probabilities?: Record<string, number>
 }
 
 export interface DecisionLogEntry {
@@ -32,8 +33,11 @@ export interface DecisionLogEntry {
 	effective: string
 	/** Sanitized failure reason (enum only) when the decision errored. */
 	error?: string
+	degradedReason?: string
 	/** Route only: the original prompt exceeded the truncation window. */
 	promptTruncated?: boolean
+	promptLength?: number
+	decisions?: { planStrategy: boolean; tier: boolean; permission: boolean; outcome: boolean }
 }
 
 export function decisionLogFilename(sessionId: string): string {

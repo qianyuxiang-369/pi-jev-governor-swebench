@@ -95,7 +95,7 @@ export default function jevExtension(pi: ExtensionAPI): void {
 	}
 
 	const log = (entry: Omit<DecisionLogEntry, "timestamp">): void => {
-		decisionCount++
+		if (entry.decisionKind !== "governor" && entry.decisionKind !== "route") decisionCount++
 		const config = loadEnvResult().config
 		if (config === undefined) return
 		void appendDecisionLog(config.logDir, sessionId, { ...entry, timestamp: new Date().toISOString() }).catch(() => {
@@ -193,6 +193,11 @@ export default function jevExtension(pi: ExtensionAPI): void {
 			ctx.ui.notify(`${result.unavailableReason}; routing/outcome use safe defaults and permissions remain enforced`, "warning")
 		}
 		restoreFromActiveBranch(ctx)
+		const config = getConfig()
+		if (config !== undefined) {
+			// Lifecycle evidence is separate from decisions, including all-off ablations.
+			log({ decisionKind: "governor", taskId: "session", effective: "enabled", decisions: config.decisions })
+		}
 	})
 
 	pi.on("session_tree", async (_event, ctx) => {
@@ -245,30 +250,32 @@ export default function jevExtension(pi: ExtensionAPI): void {
 		}
 		pi.appendEntry(JEV_STATE_CUSTOM_TYPE, task)
 
-		// Three records per task: two raw call-level records (latency/cost/
+		// Up to three records per task: enabled raw calls (latency/cost/
 		// confidence per request — the research value of having split the
 		// decisions) plus one summary carrying the combined effective result.
 		// Usage lives only on the raw records so cost aggregation does not
 		// double-count the summary.
-		log({
-			decisionKind: "route",
+		if (!route.planRequest.disabled) log({
+			decisionKind: "route_request",
 			taskId: state.taskId,
 			questions: ["plan_strategy"],
-			...(route.planConfidence !== undefined
-				? { answers: { plan_strategy: { type: "choice" as const, value: route.planStrategy, confidence: route.planConfidence } } }
+			...(route.planRequest.answer?.type === "choice"
+				? { answers: { plan_strategy: { type: "choice" as const, value: route.planRequest.answer.choice, confidence: route.planRequest.answer.confidence, probabilities: route.planRequest.answer.probabilities } } }
 				: {}),
 			...(route.planRequest.latencyMs !== undefined ? { latencyMs: route.planRequest.latencyMs } : {}),
 			...(route.planRequest.usage !== undefined ? { usage: route.planRequest.usage } : {}),
-			effective: `phase=${task.phase}${route.planRequest.disabled ? " (disabled)" : ""}`,
+			effective: `phase=${task.phase}`,
 			...(route.planRequest.errorReason !== undefined ? { error: route.planRequest.errorReason } : {}),
+			degradedReason: route.planRequest.degradedReason,
 			promptTruncated: route.promptTruncated,
+			promptLength: route.promptLength,
 		})
-		log({
-			decisionKind: "route",
+		if (!route.tierRequest.disabled) log({
+			decisionKind: "route_request",
 			taskId: state.taskId,
 			questions: ["tier"],
-			...(route.tierConfidence !== undefined
-				? { answers: { tier: { type: "choice" as const, value: route.tier, confidence: route.tierConfidence } } }
+			...(route.tierRequest.answer?.type === "choice"
+				? { answers: { tier: { type: "choice" as const, value: route.tierRequest.answer.choice, confidence: route.tierRequest.answer.confidence, probabilities: route.tierRequest.answer.probabilities } } }
 				: {}),
 			...(route.tierRequest.latencyMs !== undefined ? { latencyMs: route.tierRequest.latencyMs } : {}),
 			...(route.tierRequest.usage !== undefined ? { usage: route.tierRequest.usage } : {}),
@@ -276,13 +283,18 @@ export default function jevExtension(pi: ExtensionAPI): void {
 				? tierSkipReason === undefined
 					? `tier=${route.tier}`
 					: `tier=${route.tier} (skipped: ${tierSkipReason})`
-				: `tier=kept${route.tierRequest.disabled ? " (disabled)" : ""}`,
+				: "tier=kept",
 			...(route.tierRequest.errorReason !== undefined ? { error: route.tierRequest.errorReason } : {}),
+			degradedReason: route.tierRequest.degradedReason,
+			...(route.planRequest.disabled ? { promptTruncated: route.promptTruncated, promptLength: route.promptLength } : {}),
 		})
-		log({
+		if (!route.planRequest.disabled || !route.tierRequest.disabled) log({
 			decisionKind: "route",
 			taskId: state.taskId,
-			questions: ["plan_strategy", "tier"],
+			questions: [
+				...(!route.planRequest.disabled ? ["plan_strategy"] : []),
+				...(!route.tierRequest.disabled ? ["tier"] : []),
+			],
 			answers: {
 				...(route.planConfidence !== undefined
 					? { plan_strategy: { type: "choice" as const, value: route.planStrategy, confidence: route.planConfidence } }
@@ -485,11 +497,20 @@ export default function jevExtension(pi: ExtensionAPI): void {
 			}
 		}
 
+		return executePlan(current, ctx, config)
+	}
+
+	// Execution is a workflow transition, independent of outcome adjudication.
+	const executePlan = async (
+		current: JevState,
+		ctx: ExtensionContext,
+		config: JevConfig,
+	): Promise<AgentBeforeSettleEventResult> => {
 		let execute = config.planAutoExecute
 		if (!execute && ctx.hasUI) {
 			execute = await ctx.ui.confirm(
-				"JEV plan accepted",
-				"The read-only plan passed outcome validation. Execute it now with the full tool set?",
+				"JEV plan ready",
+				"Execute the completed read-only plan now with the full tool set?",
 			)
 		}
 		restoreTools(current)
@@ -542,6 +563,7 @@ export default function jevExtension(pi: ExtensionAPI): void {
 		// Decision-point switch: disabled outcome settles naturally without
 		// judging — no request, no log, no correction loop.
 		if (!config.decisions.outcome) {
+			if (current.phase === "planning") return executePlan(current, ctx, config)
 			restoreTools(current)
 			return finishAtBoundary(ctx)
 		}
