@@ -198,12 +198,32 @@ def validate_run_id(run_id: str) -> None:
         sys.exit(f"refusing run-id {run_id!r}: allowed characters are [A-Za-z0-9._-]")
 
 
+def warn_stale_assets(cand: Path) -> None:
+    """Smoke-04 lesson: resolve_assets reuses whatever inject.tar.gz exists, so
+    a stale snapshot silently runs old extension code (the allow-all shadow was
+    a no-op there). Warn when assets were built from a different commit."""
+    stamp = cand / "source-commit.txt"
+    if not stamp.is_file():
+        log("warning: assets carry no source-commit stamp (stale build); rebuild with build-assets.sh to pin the extension code")
+        return
+    try:
+        built = stamp.read_text().strip()
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+        if built and head and built not in ("unknown",) and built != head:
+            log(f"warning: assets were built from {built[:12]} but HEAD is {head[:12]}; extension code may be stale (rebuild: bash build-assets.sh)")
+    except Exception:
+        pass
+
+
 def resolve_assets(explicit: str | None) -> Path:
     candidates = [Path(explicit)] if explicit else [DEFAULT_ASSETS, FALLBACK_ASSETS]
     for cand in candidates:
         if (cand / "inject.tar.gz").is_file() and (cand / "pi-deps.tar.gz").is_file():
             if cand == FALLBACK_ASSETS:
                 log(f"note: using fallback assets dir {cand}")
+            warn_stale_assets(cand)
             return cand
     sys.exit(
         f"assets not found (looked at: {', '.join(str(c) for c in candidates)}); "

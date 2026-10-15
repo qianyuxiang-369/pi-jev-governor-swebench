@@ -18,6 +18,12 @@ const CONFIG: JevConfig = {
 	maxCorrections: 2,
 	outcomeGitDiff: false,
 	planAutoExecute: true,
+	decisions: {
+		planStrategy: true,
+		tier: true,
+		permission: true,
+		outcome: true,
+	},
 	logDir: "/tmp/.pi-jev",
 	unattendedPolicy: "fail-closed",
 }

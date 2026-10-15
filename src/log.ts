@@ -32,6 +32,8 @@ export interface DecisionLogEntry {
 	effective: string
 	/** Sanitized failure reason (enum only) when the decision errored. */
 	error?: string
+	/** Route only: the original prompt exceeded the truncation window. */
+	promptTruncated?: boolean
 }
 
 export function decisionLogFilename(sessionId: string): string {

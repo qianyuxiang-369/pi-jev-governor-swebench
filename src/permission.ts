@@ -231,7 +231,12 @@ export function sanitizedPermissionInput(call: PermissionCall, secrets: readonly
  * command (plus cwd) since the command IS the risk. Other tools fall back to
  * the sanitized serialization.
  */
-function structuredToolEvidence(call: PermissionCall, sanitizedInput: string, cwd: string | undefined): unknown {
+function structuredToolEvidence(
+	call: PermissionCall,
+	sanitizedInput: string,
+	secrets: readonly string[],
+	cwd: string | undefined,
+): unknown {
 	const input = call.input
 	const record = typeof input === "object" && input !== null && !Array.isArray(input) ? (input as Record<string, unknown>) : {}
 
@@ -267,7 +272,12 @@ function structuredToolEvidence(call: PermissionCall, sanitizedInput: string, cw
 	}
 
 	if (call.toolName === "bash" || call.toolName === "powershell") {
-		return { command: truncateText(sanitizedInput, 4000), ...(cwd !== undefined ? { cwd } : {}) }
+		// The command itself is the evidence — send the plain command string
+		// (scrubbed), not the serialized input object: a JSON-encoded string
+		// inside a JSON field buries the actual command and blurs adjudication.
+		const rawCommand = bashCommandOf(call.input)
+		const command = truncateText(scrubSecretLiterals(rawCommand ?? sanitizedInput, secrets), 4000)
+		return { command, ...(cwd !== undefined ? { cwd } : {}) }
 	}
 
 	return truncateText(sanitizedInput, 4000)
@@ -367,7 +377,7 @@ async function adjudicateDecide(
 		state: {
 			task_prompt: scrubSecretLiterals(truncateText(task.originalPrompt, 2000), deps.secretLiterals),
 			tool_name: call.toolName,
-			tool_input: structuredToolEvidence(call, sanitizedInput, deps.cwd),
+			tool_input: structuredToolEvidence(call, sanitizedInput, deps.secretLiterals, deps.cwd),
 			approved_operations: task.approvedActions.map((a) => truncateText(a, 200)),
 		},
 		questions: { action: permissionQuestion },

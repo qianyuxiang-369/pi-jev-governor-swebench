@@ -183,6 +183,11 @@ export function createJevClient(options: JevClientOptions): JevClient {
 				model: options.model,
 				state: request.state,
 				questions: request.questions,
+				// Cache-buster: repeated decisions over identical task evidence
+				// would otherwise hit provider-side prompt caches and understate
+				// the decision cost recorded in the evaluation data. Unique per
+				// call so every request is billed at the full rate.
+				nonce: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
 			})
 			const headers = {
 				"content-type": "application/json",

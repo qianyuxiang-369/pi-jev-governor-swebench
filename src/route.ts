@@ -32,6 +32,12 @@ export interface RouteDecision {
 	/** Request latency and token usage for the decision log; undefined when the request failed. */
 	latencyMs: number | undefined
 	usage: JevUsage | undefined
+	/** Raw call-level record for the plan_strategy request (log keeps it unmerged). */
+	planRequest: { latencyMs?: number; usage?: JevUsage; errorReason?: string; disabled: boolean }
+	/** Raw call-level record for the tier request. */
+	tierRequest: { latencyMs?: number; usage?: JevUsage; errorReason?: string; disabled: boolean }
+	/** True when the original prompt exceeded the route truncation window. */
+	promptTruncated: boolean
 }
 
 interface RouteAskResult {
@@ -39,7 +45,10 @@ interface RouteAskResult {
 	errorReason: string | undefined
 	latencyMs: number | undefined
 	usage: JevUsage | undefined
+	disabled: boolean
 }
+
+const DISABLED_ASK: RouteAskResult = { answer: undefined, errorReason: undefined, latencyMs: undefined, usage: undefined, disabled: true }
 
 /** Send one single-question route request; failure degrades that side only. */
 async function askRouteQuestion(
@@ -54,10 +63,10 @@ async function askRouteQuestion(
 	}
 	try {
 		const response = await decide(request)
-		return { answer: response.answers[key], errorReason: undefined, latencyMs: response.latencyMs, usage: response.usage }
+		return { answer: response.answers[key], errorReason: undefined, latencyMs: response.latencyMs, usage: response.usage, disabled: false }
 	} catch (error) {
 		const reason = error instanceof JevError ? error.reason : "transport_or_schema_error"
-		return { answer: undefined, errorReason: String(reason), latencyMs: undefined, usage: undefined }
+		return { answer: undefined, errorReason: String(reason), latencyMs: undefined, usage: undefined, disabled: false }
 	}
 }
 
@@ -85,9 +94,14 @@ export async function decideRoute(
 	fallbackTier: Tier,
 ): Promise<RouteDecision> {
 	const taskPrompt = scrubSecretLiterals(truncateText(prompt, 2000), [config.apiKey])
+	const promptTruncated = prompt.length > 2000
 	const [planResult, tierResult] = await Promise.all([
-		askRouteQuestion(decide, taskPrompt, "plan_strategy", planStrategyQuestion),
-		askRouteQuestion(decide, taskPrompt, "tier", tierQuestion),
+		config.decisions.planStrategy
+			? askRouteQuestion(decide, taskPrompt, "plan_strategy", planStrategyQuestion)
+			: Promise.resolve(DISABLED_ASK),
+		config.decisions.tier
+			? askRouteQuestion(decide, taskPrompt, "tier", tierQuestion)
+			: Promise.resolve(DISABLED_ASK),
 	])
 
 	const planAnswer = planResult.answer
@@ -96,7 +110,10 @@ export async function decideRoute(
 
 	let planStrategy: PlanStrategy
 	let planConfidence: number | undefined
-	if (planResult.errorReason !== undefined) {
+	if (planResult.disabled) {
+		planStrategy = "direct"
+		degradations.push("plan_strategy disabled by config; defaulting to direct")
+	} else if (planResult.errorReason !== undefined) {
 		planStrategy = "direct"
 		degradations.push(`plan_strategy request failed (${planResult.errorReason}); defaulting to direct`)
 	} else if (planAnswer?.type === "choice" && planAnswer.confidence >= config.routeConfidence) {
@@ -114,7 +131,9 @@ export async function decideRoute(
 	let tier: Tier = fallbackTier
 	let switchTier = false
 	let tierConfidence: number | undefined
-	if (tierResult.errorReason !== undefined) {
+	if (tierResult.disabled) {
+		degradations.push("tier disabled by config; keeping current model")
+	} else if (tierResult.errorReason !== undefined) {
 		degradations.push(`tier request failed (${tierResult.errorReason}); keeping current model`)
 	} else if (tierAnswer?.type === "choice" && tierAnswer.confidence >= config.routeConfidence) {
 		tier = tierAnswer.choice as Tier
@@ -142,6 +161,9 @@ export async function decideRoute(
 		errorReason: failures.length > 0 ? failures.join("; ") : undefined,
 		latencyMs,
 		usage: mergeUsage(planResult.usage, tierResult.usage),
+		planRequest: { latencyMs: planResult.latencyMs, usage: planResult.usage, errorReason: planResult.errorReason, disabled: planResult.disabled },
+		tierRequest: { latencyMs: tierResult.latencyMs, usage: tierResult.usage, errorReason: tierResult.errorReason, disabled: tierResult.disabled },
+		promptTruncated,
 	}
 }
 

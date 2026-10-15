@@ -19,6 +19,18 @@ export interface JevModels {
 
 export type UnattendedPolicy = "fail-closed" | "benchmark" | "allow-all"
 
+/**
+ * Per-decision-point switches (P17): every decision is on by default and can
+ * be disabled individually via PI_JEV_ENABLE_* for isolated ablations — a
+ * disabled decision point is fully skipped (no request, no log, no cost).
+ */
+export interface DecisionToggles {
+	planStrategy: boolean
+	tier: boolean
+	permission: boolean
+	outcome: boolean
+}
+
 export interface JevConfig {
 	url: string
 	apiKey: string
@@ -35,6 +47,8 @@ export interface JevConfig {
 	logDir: string
 	/** Behaviour when no UI is available for human confirmation. */
 	unattendedPolicy: UnattendedPolicy
+	/** Per-decision-point switches; all default to enabled. */
+	decisions: DecisionToggles
 }
 
 export interface ConfigResult {
@@ -205,6 +219,12 @@ export function loadConfig(options: LoadConfigOptions): ConfigResult {
 			maxCorrections,
 			outcomeGitDiff: parseBoolean(env["PI_JEV_OUTCOME_GIT_DIFF"], false),
 			planAutoExecute: parseBoolean(env["PI_JEV_PLAN_AUTO_EXECUTE"], true),
+			decisions: {
+				planStrategy: parseBoolean(env["PI_JEV_ENABLE_PLAN_STRATEGY"], true),
+				tier: parseBoolean(env["PI_JEV_ENABLE_TIER"], true),
+				permission: parseBoolean(env["PI_JEV_ENABLE_PERMISSION"], true),
+				outcome: parseBoolean(env["PI_JEV_ENABLE_OUTCOME"], true),
+			},
 			logDir: defaultLogDir(env, options.platform, options.homeDir),
 			unattendedPolicy: parseUnattendedPolicy(env["PI_JEV_UNATTENDED_POLICY"]),
 		},

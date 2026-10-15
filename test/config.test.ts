@@ -61,6 +61,17 @@ describe("loadConfig", () => {
 			normal: "anthropic:claude-sonnet",
 			strong: "openrouter:google/gemini-2.5-pro",
 		})
+		// Decision-point toggles default to enabled.
+		expect(config?.decisions).toEqual({ planStrategy: true, tier: true, permission: true, outcome: true })
+	})
+
+	it("parses PI_JEV_ENABLE_* decision-point toggles", () => {
+		const { config } = load({
+			...VALID_ENV,
+			PI_JEV_ENABLE_TIER: "0",
+			PI_JEV_ENABLE_OUTCOME: "false",
+		})
+		expect(config?.decisions).toEqual({ planStrategy: true, tier: false, permission: true, outcome: false })
 	})
 
 	it("disables remote decisions when the flag is disabled", () => {

@@ -28,6 +28,12 @@ const CONFIG: JevConfig = {
 	maxCorrections: 2,
 	outcomeGitDiff: true,
 	planAutoExecute: true,
+	decisions: {
+		planStrategy: true,
+		tier: true,
+		permission: true,
+		outcome: true,
+	},
 	logDir: "/tmp/.pi-jev",
 	unattendedPolicy: "fail-closed",
 }
@@ -133,6 +139,32 @@ describe("decideRoute", () => {
 		expect(decision.errorReason).toBe("http_500")
 		expect(decision.latencyMs).toBe(9)
 		expect(decision.usage).toEqual({ cost: 0.00001, input_tokens: 100, output_tokens: 20 })
+	})
+
+	it("skips a side entirely when its decision toggle is off", async () => {
+		const decide = routeResponse("plan_then_execute", 0.95, "strong", 0.9)
+		const decision = await decideRoute(
+			decide,
+			{ ...CONFIG, decisions: { ...CONFIG.decisions, planStrategy: false } },
+			"task",
+			"normal",
+		)
+		// Only the tier request fired; usage sums the fired side only.
+		expect(decide).toHaveBeenCalledTimes(1)
+		expect(decision.planStrategy).toBe("direct")
+		expect(decision.tier).toBe("strong")
+		expect(decision.switchTier).toBe(true)
+		expect(decision.degradations.join(" ")).toContain("plan_strategy disabled by config")
+		expect(decision.usage).toEqual({ cost: 0.00001, input_tokens: 100, output_tokens: 20 })
+		expect(decision.planRequest.disabled).toBe(true)
+		expect(decision.tierRequest.disabled).toBe(false)
+	})
+
+	it("flags prompts that exceed the truncation window", async () => {
+		const long = await decideRoute(routeResponse("direct", 0.9, "small", 0.9), CONFIG, "x".repeat(2001), "normal")
+		expect(long.promptTruncated).toBe(true)
+		const short = await decideRoute(routeResponse("direct", 0.9, "small", 0.9), CONFIG, "short task", "normal")
+		expect(short.promptTruncated).toBe(false)
 	})
 })
 

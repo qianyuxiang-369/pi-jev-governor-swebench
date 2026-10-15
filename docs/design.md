@@ -112,6 +112,8 @@ abort、error、配置不可用等不能安全判定的 settle 路径恢复工�
 
 两个决策互不共享答案：workflow 分类不得影响难度分类（direct 但需 strong、multi-step 但只需 normal 都是合法组合）。任一侧失败只降级该侧（plan 侧回 direct、tier 侧保持当前模型），另一侧照常生效；延迟取两请求较慢者，用量合并后写入决策日志。
 
+决策日志每任务写三条：`plan_strategy` 与 `tier` 两条 raw 记录（各自 latency/usage/confidence/error，调用级证据——这是拆分的研究价值所在）加一条 summary（合并生效结果，不带 usage 防成本双计）。plan 记录另带 `promptTruncated` 标记（原始 prompt 超过 2000 字符截断时为 true），供 pilot 统计截断与路由失败的相关性。每次 decide 请求体含唯一 nonce，避免相同任务证据命中 provider 端 prompt cache 导致评测成本被低估。
+
 低于 `PI_JEV_ROUTE_CONFIDENCE` 时：
 
 - plan strategy 降为 `direct`；
@@ -321,7 +323,11 @@ decisions-<sanitized-session-id>.jsonl
 | `PI_JEV_MAX_CORRECTIONS` | `2` | 任务共享预算，硬上限 2 |
 | `PI_JEV_OUTCOME_GIT_DIFF` | `false` | 是否发送 `git diff --stat` |
 | `PI_JEV_PLAN_AUTO_EXECUTE` | `true` | 计划通过后是否自动执行 |
-| `PI_JEV_UNATTENDED_POLICY` | `fail-closed` | 无 UI 确认时的兜底策略：`fail-closed`、`benchmark`（§6.4）或 `allow-all`（评测旁路） |
+| `PI_JEV_UNATTENDED_POLICY` | `fail-closed` | 无 UI 确认时的兜底策略：`fail-closed`、`benchmark`（§6.4，**正式评测主口径**）或 `allow-all`（shadow，仅作 ablation 对照组） |
+| `PI_JEV_ENABLE_PLAN_STRATEGY` | `true` | 决策点开关（P18）：`0`/`false` 完全跳过（无请求/无日志/无成本），plan 回退 `direct` |
+| `PI_JEV_ENABLE_TIER` | `true` | 同上；关闭时保持当前模型不切档 |
+| `PI_JEV_ENABLE_PERMISSION` | `true` | 同上；关闭时工具直接放行 |
+| `PI_JEV_ENABLE_OUTCOME` | `true` | 同上；关闭时自然 settle 不判定不纠正 |
 | `PI_JEV_LOG_DIR` | 平台状态目录 | 覆盖日志目录 |
 
 命令与界面：

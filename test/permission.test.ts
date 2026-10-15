@@ -203,7 +203,9 @@ describe("layer 2 — JEV adjudication", () => {
 		const state = request.state as Record<string, unknown>
 		expect(state["task_prompt"]).toBe("fix the failing test")
 		expect(state["tool_name"]).toBe("bash")
-		expect(JSON.stringify(state["tool_input"])).toContain("[redacted]")
+		// Structured bash evidence carries the plain command; non-command fields
+		// (the sk-live key) are dropped entirely and never leave the process.
+		expect(state["tool_input"]).toEqual({ command: "deploy.sh" })
 		expect(JSON.stringify(state["tool_input"])).not.toContain("sk-live")
 		expect(state["approved_operations"]).toEqual(["bash cargo test"])
 	})
@@ -235,7 +237,8 @@ describe("layer 2 — JEV adjudication", () => {
 		await adjudicate(bash("python -m pytest -x"), taskContext(), d)
 		const request = decide.mock.calls[0]![0] as JevDecideRequest
 		const state = request.state as Record<string, unknown>
-		expect(state["tool_input"]).toMatchObject({ command: expect.stringContaining("python -m pytest -x"), cwd: CWD })
+		// Plain command string, not a JSON-encoded input object (no double serialization).
+		expect(state["tool_input"]).toEqual({ command: "python -m pytest -x", cwd: CWD })
 	})
 
 	it("marks writes outside the repo without sending the content", async () => {

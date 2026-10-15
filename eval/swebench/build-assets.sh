@@ -45,6 +45,9 @@ echo "  output    : ${OUT}"
 rm -rf "${OUT}"
 mkdir -p "${OUT}/${PKG_REL}/dist" "${OUT}/governor"
 
+# Source stamp: run.py warns when assets predate the current HEAD (smoke-04 lesson).
+git -C "${ROOT}" rev-parse HEAD > "${OUT}/source-commit.txt" 2>/dev/null || echo unknown > "${OUT}/source-commit.txt"
+
 cp "${NODE_BIN}" "${OUT}/node"
 cp "${PI_PKG}/package.json" "${OUT}/${PKG_REL}/"
 cp -r "${PI_PKG}/dist/bundle" "${OUT}/${PKG_REL}/dist/"

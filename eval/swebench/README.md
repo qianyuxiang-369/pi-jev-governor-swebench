@@ -208,6 +208,8 @@ python run.py --variant vanilla --variant governor --run-id pilot-01 --resume
 - `--thinking {off,minimal,low,medium,high,xhigh,max}` 默认 medium（pi 自身默认也是 medium；显式传入保证批次间固定）。
 - **退出码**：非 dry-run 存在基础设施失败、recorded outcome 缺 `patch.diff`（缺失 patch 是结构异常，非合法空 patch；行仍写入以保分母，manifest `missing_patch_files` 记录）或零 recorded outcomes → exit 1；dry-run 存在非 `dry_run_ok` → exit 1。CI/脚本按此判定批次是否可用。
 - `.env.local` 仅白名单键进入容器：`PI_JEV_*` 前缀 + `OPENROUTER_API_KEY`；其余键记入 manifest 后丢弃。
+- **实验组定义（P18，用户裁定）**：Governor **主实验只用 `PI_JEV_UNATTENDED_POLICY=benchmark`**（deterministic 白名单兜底，测完整 Governor 语义）；`allow-all`（shadow：判定照跑照记但 block 一律覆写放行）**仅作 ablation 对照组**，不得混入主结果。run spec 的 config_hash 含该字段，两组天然隔离不混。
+- **initial model 固定**：tier 置信度 <0.8 时 agent 保持启动模型，因此正式实验必须固定启动模型（run spec 已冻结模型/tier 字段；跨机器跑批次时用同一 `--model`，否则 current model 漂移会污染路由对比）。
 - python 解释器用 `/workspace/.conda/bin/python`（有 datasets 4.8.5）。
 
 ### 5.2 完成项（含零成本验证证据）
@@ -396,3 +398,31 @@ JuiceFS 上刚 copy 的大文件（node 二进制 123MB）元数据滞后几秒�
 4. **暂缓项**（按用户指示先跑 baseline）：tier 两阶段 reroute（evidence-informed routing，二轮再加）；approved_operations 压缩（近 N 条 + tool 级摘要）；outcome evidence 结构化（verification/tool_summary 提取）。
 
 **验证**：typecheck 0 错误；vitest 200 passed（route 新增「两次独立单问题请求」断言 + 单侧失败只降级该侧；permission 新增 3 个结构化证据断言——edit 元数据/正文不外发、bash command+cwd、repo 外 write 的 outside_repo 标记）。注意：smoke-04 运行中容器用的是启动时注入的资产快照，不受本次源码改动影响；新口径自 smoke-05 起生效。
+
+### 5.16 P18 smoke-04 判分、资产陈旧事故与四项确认落地（2026-10-15，用户评审）
+
+**smoke-04 判分**（3 题 × 2 口，check_images 全 OK，grade.py 双口）：
+
+| instance | vanilla | governor | 历史口径 |
+|---|---|---|---|
+| django-10999 | unresolved $0.0037 | unresolved $0.0018 | 双组 unresolved 稳定复现 ✓ |
+| sympy-17139 | resolved $0.0048 | resolved $0.0089 | 双组 resolved 复现 ✓ |
+| scikit-learn-14894 | resolved $0.0066 | **agent_error $0.2344** | 历史 resolved，本轮翻车（见下） |
+
+governor 合计 $0.2450 vs vanilla $0.0151。注意：**本轮 governor 决策记录里 route 仍是一条两答案、无任何 allow_all_override**——这不是 shadow 口径数据。
+
+**资产陈旧事故（重要教训）**：smoke-04 的 6 次运行全部使用 `container-assets/inject.tar.gz`（mtime 10-14 13:27，**P16 之前的 benchmark 时代构建**）——run.py 的 `resolve_assets` 只要资产文件存在就复用，smoke-04 启动时未重建资产，`.env.local` 的 allow-all 传进容器后 config 解析回退 fail-closed。sklearn governor 暴露后果：65 次 permission 中 43 次 `fail_closed, invalid_answers`（JEV 返回非法答案）全部 block 无 shadow 覆写 → 重试税烧 66 轮 / $0.234 → agent_error。已加护栏：build-assets.sh 写 `source-commit.txt` stamp，run.py `resolve_assets` 时对比 HEAD 不一致即警告。
+
+**invalid_answers 的第二个根因（approved_operations 无界累积实证）**：permission 决策序列开头 11 连 allow，随后 invalid 越来越密、尾段连续 22 次——随会话变长而劣化。approved_operations 每次工具调用累积一条且每条最长 200 字符，sklearn 65 次调用后请求膨胀，JEV 输出稳定性被打崩。用户建议 ⑥（压缩为近 N 条 + tool 级摘要）从成本优化升级为**稳定性修复**，待下一轮落地。
+
+**P17 四项确认全部落地**：
+1. **主口径切回 benchmark**（用户裁定：allow-all 不得作为主实验配置，只作 ablation）——`.env.local` 已切 `PI_JEV_UNATTENDED_POLICY=benchmark`，README §5.1 的组定义同步：主实验 = strict benchmark policy，allow-all shadow 单独成组。
+2. **bash 双重序列化修复**（用户发现）：`structuredToolEvidence` 的 bash 分支原把 sanitized 序列化整体塞进 command 字段（JEV 收到 `"{\"command\":\"...\"}"` 字符串）——改为 `bashCommandOf` 提取命令本体 + scrub，测试断言 `toEqual({command: "python -m pytest -x", cwd})`。
+3. **route 子请求 raw 记录**：decisions.jsonl 每任务 3 条——`plan_strategy` / `tier` 两条 raw（各自 latency/usage/confidence/error）+ 1 条 summary（合并 effective，不带 usage 防成本双计）。
+4. **截断标记**：route plan 记录新增 `promptTruncated` 字段（原始 prompt > 2000 字符），pilot 据此统计 truncation 与 routing 失败的相关性。
+
+**决策点独立开关（默认全开）**：`PI_JEV_ENABLE_PLAN_STRATEGY / PI_JEV_ENABLE_TIER / PI_JEV_ENABLE_PERMISSION / PI_JEV_ENABLE_OUTCOME`（0/false 关闭）。关闭 = 完全跳过（无请求、无日志、无成本）：plan→direct、tier→保持当前模型、permission→直接放行、outcome→自然 settle。与 `PI_JEV_UNATTENDED_POLICY` 组合可实现「只测决策点 X」的单变量 ablation。
+
+**JEV 请求 nonce 防缓存**：client.ts 的 decide 请求体加唯一 nonce——相同 task 证据的重复决策不再命中 provider 端 prompt cache，评测数据里 JEV 成本按全价如实记录（agent 主模型调用的缓存是真实降价，不动）。
+
+**验证**：tsc 0 错误、vitest 203 passed（+3：开关跳过/截断标记/开关解析）、py 124 passed；资产已重建（stamp = 本 commit）。
