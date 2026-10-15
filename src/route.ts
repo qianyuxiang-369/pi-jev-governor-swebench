@@ -1,19 +1,22 @@
 /**
  * Decisions ① + ② — plan_strategy and model tier (docs/design.md §4.1).
  *
- * One JEV request asks both questions at `before_agent_start`. Tier switching
- * guards (manual override, catalogue resolution, scopedModels, auth) follow
- * the reviewed pseudocode exactly; guards warn once and skip, never throw.
+ * Two independent single-question JEV requests run in parallel at
+ * `before_agent_start` over the same task evidence: workflow classification
+ * must not colour difficulty classification (or vice versa), so each decision
+ * is judged in isolation. Tier switching guards (manual override, catalogue
+ * resolution, scopedModels, auth) follow the reviewed pseudocode exactly;
+ * guards warn once and skip, never throw.
  */
 
 import { modelsAreEqual } from "@earendil-works/pi-ai"
 import type { Model } from "@earendil-works/pi-ai"
 import type { ScopedModel } from "@earendil-works/pi-coding-agent"
-import type { JevClient, JevDecideRequest, JevResponse, JevUsage } from "./client.ts"
+import type { JevAnswer, JevClient, JevDecideRequest, JevResponse, JevUsage } from "./client.ts"
 import { JevError } from "./client.ts"
 import type { JevConfig } from "./config.ts"
 import { scrubSecretLiterals, truncateText } from "./evidence.ts"
-import { planStrategyQuestion, tierQuestion, type PlanStrategy, type Tier } from "./questions.ts"
+import { planStrategyQuestion, tierQuestion, type JevQuestion, type PlanStrategy, type Tier } from "./questions.ts"
 
 export interface RouteDecision {
 	planStrategy: PlanStrategy
@@ -24,17 +27,56 @@ export interface RouteDecision {
 	tierConfidence: number | undefined
 	/** Downgrade notes for the log (empty when both answers were confident). */
 	degradations: string[]
-	/** Sanitized reason when the JEV request itself failed. */
+	/** Sanitized reasons when either JEV request failed (deduplicated, joined). */
 	errorReason: string | undefined
 	/** Request latency and token usage for the decision log; undefined when the request failed. */
 	latencyMs: number | undefined
 	usage: JevUsage | undefined
 }
 
+interface RouteAskResult {
+	answer: JevAnswer | undefined
+	errorReason: string | undefined
+	latencyMs: number | undefined
+	usage: JevUsage | undefined
+}
+
+/** Send one single-question route request; failure degrades that side only. */
+async function askRouteQuestion(
+	decide: JevClient["decide"],
+	taskPrompt: string,
+	key: "plan_strategy" | "tier",
+	question: JevQuestion,
+): Promise<RouteAskResult> {
+	const request: JevDecideRequest = {
+		state: { task_prompt: taskPrompt },
+		questions: { [key]: question },
+	}
+	try {
+		const response = await decide(request)
+		return { answer: response.answers[key], errorReason: undefined, latencyMs: response.latencyMs, usage: response.usage }
+	} catch (error) {
+		const reason = error instanceof JevError ? error.reason : "transport_or_schema_error"
+		return { answer: undefined, errorReason: String(reason), latencyMs: undefined, usage: undefined }
+	}
+}
+
+function mergeUsage(a: JevUsage | undefined, b: JevUsage | undefined): JevUsage | undefined {
+	if (a === undefined) return b
+	if (b === undefined) return a
+	return {
+		cost: (a.cost ?? 0) + (b.cost ?? 0),
+		input_tokens: (a.input_tokens ?? 0) + (b.input_tokens ?? 0),
+		output_tokens: (a.output_tokens ?? 0) + (b.output_tokens ?? 0),
+	}
+}
+
 /**
- * Ask plan_strategy + tier in one request. Never throws: routing failure
- * degrades to direct + keep-current-model (routing is an optimization, not a
- * gate — fail-closed applies to permissions only).
+ * Ask plan_strategy and tier as two independent parallel single-question
+ * requests over the same task evidence. Never throws: each side's routing
+ * failure degrades only that side to its safe default (direct /
+ * keep-current-model) — routing is an optimization, not a gate (fail-closed
+ * applies to permissions only).
  */
 export async function decideRoute(
 	decide: JevClient["decide"],
@@ -42,36 +84,22 @@ export async function decideRoute(
 	prompt: string,
 	fallbackTier: Tier,
 ): Promise<RouteDecision> {
-	const request: JevDecideRequest = {
-		state: { task_prompt: scrubSecretLiterals(truncateText(prompt, 2000), [config.apiKey]) },
-		questions: { plan_strategy: planStrategyQuestion, tier: tierQuestion },
-	}
+	const taskPrompt = scrubSecretLiterals(truncateText(prompt, 2000), [config.apiKey])
+	const [planResult, tierResult] = await Promise.all([
+		askRouteQuestion(decide, taskPrompt, "plan_strategy", planStrategyQuestion),
+		askRouteQuestion(decide, taskPrompt, "tier", tierQuestion),
+	])
 
-	let response: JevResponse
-	try {
-		response = await decide(request)
-	} catch (error) {
-		const reason = error instanceof JevError ? error.reason : "transport_or_schema_error"
-		return {
-			planStrategy: "direct",
-			tier: fallbackTier,
-			switchTier: false,
-			planConfidence: undefined,
-			tierConfidence: undefined,
-			degradations: [`route request failed (${reason}); defaulting to direct, keeping current model`],
-			errorReason: String(reason),
-			latencyMs: undefined,
-			usage: undefined,
-		}
-	}
-
-	const planAnswer = response.answers["plan_strategy"]
-	const tierAnswer = response.answers["tier"]
+	const planAnswer = planResult.answer
+	const tierAnswer = tierResult.answer
 	const degradations: string[] = []
 
 	let planStrategy: PlanStrategy
 	let planConfidence: number | undefined
-	if (planAnswer?.type === "choice" && planAnswer.confidence >= config.routeConfidence) {
+	if (planResult.errorReason !== undefined) {
+		planStrategy = "direct"
+		degradations.push(`plan_strategy request failed (${planResult.errorReason}); defaulting to direct`)
+	} else if (planAnswer?.type === "choice" && planAnswer.confidence >= config.routeConfidence) {
 		planStrategy = planAnswer.choice as PlanStrategy
 		planConfidence = planAnswer.confidence
 	} else if (planAnswer?.type === "choice") {
@@ -86,7 +114,9 @@ export async function decideRoute(
 	let tier: Tier = fallbackTier
 	let switchTier = false
 	let tierConfidence: number | undefined
-	if (tierAnswer?.type === "choice" && tierAnswer.confidence >= config.routeConfidence) {
+	if (tierResult.errorReason !== undefined) {
+		degradations.push(`tier request failed (${tierResult.errorReason}); keeping current model`)
+	} else if (tierAnswer?.type === "choice" && tierAnswer.confidence >= config.routeConfidence) {
 		tier = tierAnswer.choice as Tier
 		switchTier = true
 		tierConfidence = tierAnswer.confidence
@@ -97,7 +127,22 @@ export async function decideRoute(
 		degradations.push("tier answer missing; keeping current model")
 	}
 
-	return { planStrategy, tier, switchTier, planConfidence, tierConfidence, degradations, errorReason: undefined, latencyMs: response.latencyMs, usage: response.usage }
+	// Parallel requests: wall-clock is the slower hop, usage adds up, and
+	// each distinct failure reason lands in the log once.
+	const latencies = [planResult.latencyMs, tierResult.latencyMs].filter((v): v is number => v !== undefined)
+	const latencyMs = latencies.length === 0 ? undefined : Math.max(...latencies)
+	const failures = [...new Set([planResult.errorReason, tierResult.errorReason].filter((v): v is string => v !== undefined))]
+	return {
+		planStrategy,
+		tier,
+		switchTier,
+		planConfidence,
+		tierConfidence,
+		degradations,
+		errorReason: failures.length > 0 ? failures.join("; ") : undefined,
+		latencyMs,
+		usage: mergeUsage(planResult.usage, tierResult.usage),
+	}
 }
 
 export type ModelRef = `${string}:${string}`

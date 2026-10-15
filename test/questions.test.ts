@@ -56,8 +56,9 @@ describe("questions", () => {
 	})
 
 	it("keeps the migrated policy sentences in instructions", () => {
-		expect(planStrategyQuestion.instructions).toContain("scope, blast radius and ambiguity - not raw difficulty")
-		expect(tierQuestion.instructions).toContain("cheapest tier that can reliably complete")
+		expect(planStrategyQuestion.instructions).toContain("explicit planning phase before repository changes")
+		expect(tierQuestion.instructions).toContain("least capable model tier")
+		expect(tierQuestion.instructions).toContain("Do not infer model tier from whether the task should use a planning phase")
 		expect(outcomeActionQuestion.instructions).toContain("Unknown validation is not a passing test")
 		expect(outcomeActionQuestion.instructions).toContain("A plan task needs a complete plan")
 	})

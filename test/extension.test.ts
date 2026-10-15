@@ -385,7 +385,8 @@ describe("extension wiring", () => {
 		expect(api.activeTools).not.toContain("edit")
 
 		const result = (await api.emit("agent_before_settle", settleEvent())) as AnyRecord
-		expect(vi.mocked(fetch).mock.calls).toHaveLength(2)
+		// Two parallel route requests (plan_strategy + tier) + one settle request.
+		expect(vi.mocked(fetch).mock.calls).toHaveLength(3)
 		expect(result).toMatchObject({ continue: true })
 		const entry = (result.entries as AnyRecord[])[1]
 		expect(entry).toMatchObject({ type: "custom_message", customType: "jev-execution-context", display: false })
@@ -672,7 +673,8 @@ describe("extension wiring", () => {
 
 		await api.runCommand("jev", "on")
 		await api.emit("before_agent_start", { prompt: "task" })
-		expect(fetchMock).toHaveBeenCalledTimes(1)
+		// Route now sends two parallel single-question requests.
+		expect(fetchMock).toHaveBeenCalledTimes(2)
 
 		await api.runCommand("jev", "")
 		const status = api.notifications.findLast((n) => n.message.includes("phase:"))

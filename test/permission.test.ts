@@ -203,9 +203,58 @@ describe("layer 2 — JEV adjudication", () => {
 		const state = request.state as Record<string, unknown>
 		expect(state["task_prompt"]).toBe("fix the failing test")
 		expect(state["tool_name"]).toBe("bash")
-		expect(String(state["tool_input"])).toContain("[redacted]")
-		expect(String(state["tool_input"])).not.toContain("sk-live")
+		expect(JSON.stringify(state["tool_input"])).toContain("[redacted]")
+		expect(JSON.stringify(state["tool_input"])).not.toContain("sk-live")
 		expect(state["approved_operations"]).toEqual(["bash cargo test"])
+	})
+
+	it("sends operation metadata instead of code bodies for edit calls", async () => {
+		const decide = vi.fn(async (_request: unknown) => permissionResponse("allow", 0.95))
+		const d = deps({ decide, cwd: CWD })
+		const verdict = await adjudicate(
+			{ toolName: "edit", input: { path: join(CWD, "pkg/module.py"), edits: [{ oldText: "legacyFunctionBody", newText: "newFunctionBody" }] } },
+			taskContext(),
+			d,
+		)
+		expect(verdict.block).toBe(false)
+		const request = decide.mock.calls[0]![0] as JevDecideRequest
+		const state = request.state as Record<string, unknown>
+		expect(state["tool_input"]).toEqual({
+			operation: "modify_existing_file",
+			path: join(CWD, "pkg/module.py"),
+			scope: "repo_local",
+			content_size: 33,
+		})
+		// Code bodies never leave the process.
+		expect(JSON.stringify(request.state)).not.toContain("legacyFunctionBody")
+	})
+
+	it("sends command and cwd for bash calls", async () => {
+		const decide = vi.fn(async (_request: unknown) => permissionResponse("allow", 0.95))
+		const d = deps({ decide, cwd: CWD })
+		await adjudicate(bash("python -m pytest -x"), taskContext(), d)
+		const request = decide.mock.calls[0]![0] as JevDecideRequest
+		const state = request.state as Record<string, unknown>
+		expect(state["tool_input"]).toMatchObject({ command: expect.stringContaining("python -m pytest -x"), cwd: CWD })
+	})
+
+	it("marks writes outside the repo without sending the content", async () => {
+		const decide = vi.fn(async (_request: unknown) => permissionResponse("allow", 0.95))
+		const d = deps({ decide, cwd: CWD })
+		await adjudicate(
+			{ toolName: "write", input: { path: "/etc/jev-outside-probe.txt", content: "outside-write-body" } },
+			taskContext(),
+			d,
+		)
+		const request = decide.mock.calls[0]![0] as JevDecideRequest
+		const state = request.state as Record<string, unknown>
+		expect(state["tool_input"]).toEqual({
+			operation: "create_or_replace",
+			path: "/etc/jev-outside-probe.txt",
+			scope: "outside_repo",
+			content_size: 18,
+		})
+		expect(JSON.stringify(request.state)).not.toContain("outside-write-body")
 	})
 
 	it("scrubs secret literals from the task prompt before sending evidence", async () => {

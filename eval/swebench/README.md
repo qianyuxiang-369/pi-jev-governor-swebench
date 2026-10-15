@@ -384,3 +384,15 @@ JuiceFS 上刚 copy 的大文件（node 二进制 123MB）元数据滞后几秒�
 - 语义影响：governor 与 vanilla 在 permission 层的实际执行完全一致（零拦截、零重试税），但判定数据完整保留（shadow 记录 block 分布）；JEV 判定开销仍在（≈$0.05–0.1/8 run），hard-deny/敏感输入的判定照跑但不生效（容器一次性、无真实凭据，风险可接受）。
 
 **验证**：vitest 196 passed（shadow 语义 3 测试：判定照跑+block 只记录不执行 / allow 原样透传无 override 记录 / 交互模式不生效）、py 124 passed。
+
+### 5.15 P17 决策请求拆分与输入优化（2026-10-15，用户评审）
+
+**背景**：基于真实 smoke-04 请求的评审——route 一次请求同答两题存在耦合风险（workflow 分类可能污染难度分类），permission 把 edit/write 代码正文全量发给 JEV 既贵又干扰授权判断。
+
+**改动**：
+1. **route 拆分（决策点 ①②）**：`src/route.ts` 的 `decideRoute` 从一次双题请求改为**两次独立的单问题请求并行发出**（`Promise.all`，同 task_prompt 证据）：plan_strategy 只判执行结构、tier 只判推理能力，互不共享答案；任一侧失败只降级该侧（plan 回 direct / tier 保持当前模型），另一侧照常生效。决策日志保持一条 route 记录（合并生效结果，latency 取较慢者、usage 求和），统计口径不变。问题定义同步纯化（`src/questions.ts`）：plan_strategy 的 criteria 不再暗示 easy=direct / hard=plan；tier instructions 显式声明「不得从是否需要规划阶段推断档位——direct 可能需要 strong，multi-step 可能只需 normal」。
+2. **permission 结构化输入（决策点 ③）**：`src/permission.ts` 新增 `structuredToolEvidence`——edit/write 只发 `{operation, path, scope(repo_local/outside_repo/unknown), content_size}`（不发代码正文），bash/powershell 发完整脱敏命令 + `cwd`，其他工具退回脱敏序列化。敏感输入判定仍对原始完整输入执行（安全语义不变）。效果：token 降、latency 降、代码不外发、内容不再干扰授权判断。
+3. **outcome 开启 git diff（决策点 ④ 配套）**：`.env.local` 设 `PI_JEV_OUTCOME_GIT_DIFF=1`，outcome 判定携带 `git diff --stat` 摘要（代码修改任务判断完成度的关键证据）；三题不拆（action/issue/quality 同一判断，拆开会把长 context ×3）。
+4. **暂缓项**（按用户指示先跑 baseline）：tier 两阶段 reroute（evidence-informed routing，二轮再加）；approved_operations 压缩（近 N 条 + tool 级摘要）；outcome evidence 结构化（verification/tool_summary 提取）。
+
+**验证**：typecheck 0 错误；vitest 200 passed（route 新增「两次独立单问题请求」断言 + 单侧失败只降级该侧；permission 新增 3 个结构化证据断言——edit 元数据/正文不外发、bash command+cwd、repo 外 write 的 outside_repo 标记）。注意：smoke-04 运行中容器用的是启动时注入的资产快照，不受本次源码改动影响；新口径自 smoke-05 起生效。

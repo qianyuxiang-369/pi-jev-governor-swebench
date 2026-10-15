@@ -222,6 +222,57 @@ export function sanitizedPermissionInput(call: PermissionCall, secrets: readonly
 	return serialized
 }
 
+/**
+ * Structured evidence for the permission decision. edit/write carry only
+ * operation metadata (path, scope, content size) instead of code bodies: the
+ * gate judges authorization and risk, not code quality, and the full body
+ * would inflate tokens, leak code to the decision model, and blur the
+ * decision with content it must not evaluate. bash keeps the full sanitized
+ * command (plus cwd) since the command IS the risk. Other tools fall back to
+ * the sanitized serialization.
+ */
+function structuredToolEvidence(call: PermissionCall, sanitizedInput: string, cwd: string | undefined): unknown {
+	const input = call.input
+	const record = typeof input === "object" && input !== null && !Array.isArray(input) ? (input as Record<string, unknown>) : {}
+
+	if (call.toolName === "edit" || call.toolName === "write") {
+		const path = typeof record.path === "string" ? record.path : undefined
+		let contentSize: number | undefined
+		if (call.toolName === "write") {
+			contentSize = typeof record.content === "string" ? record.content.length : undefined
+		} else {
+			const edits = Array.isArray(record.edits) ? record.edits : []
+			contentSize = edits.reduce((sum: number, edit) => {
+				if (typeof edit !== "object" || edit === null) return sum
+				const entry = edit as Record<string, unknown>
+				return (
+					sum +
+					(typeof entry.oldText === "string" ? entry.oldText.length : 0) +
+					(typeof entry.newText === "string" ? entry.newText.length : 0)
+				)
+			}, 0)
+		}
+		let scope: string
+		if (path === undefined || cwd === undefined) {
+			scope = "unknown"
+		} else {
+			scope = isPathInRepo(path, cwd) ? "repo_local" : "outside_repo"
+		}
+		return {
+			operation: call.toolName === "edit" ? "modify_existing_file" : "create_or_replace",
+			path,
+			scope,
+			content_size: contentSize,
+		}
+	}
+
+	if (call.toolName === "bash" || call.toolName === "powershell") {
+		return { command: truncateText(sanitizedInput, 4000), ...(cwd !== undefined ? { cwd } : {}) }
+	}
+
+	return truncateText(sanitizedInput, 4000)
+}
+
 export function bashCommandOf(input: Record<string, unknown>): string | undefined {
 	const command = input["command"]
 	return typeof command === "string" ? command : undefined
@@ -309,12 +360,14 @@ async function adjudicateDecide(
 	const sanitizedInput = sanitizedPermissionInput(call, secretLiterals)
 
 	// Layer 2 — JEV adjudication. Every outgoing task prompt is scrubbed, the
-	// same invariant as the route and outcome paths.
+	// same invariant as the route and outcome paths. Tool input goes out as
+	// structured evidence (operation metadata for edit/write, the command for
+	// bash) rather than raw serialized bodies.
 	const request: JevDecideRequest = {
 		state: {
 			task_prompt: scrubSecretLiterals(truncateText(task.originalPrompt, 2000), deps.secretLiterals),
 			tool_name: call.toolName,
-			tool_input: truncateText(sanitizedInput, 4000),
+			tool_input: structuredToolEvidence(call, sanitizedInput, deps.cwd),
 			approved_operations: task.approvedActions.map((a) => truncateText(a, 200)),
 		},
 		questions: { action: permissionQuestion },

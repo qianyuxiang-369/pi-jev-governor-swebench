@@ -39,7 +39,7 @@ pi-jev-governor/
 
 | 决策 | pi 事件 | 行为 |
 |---|---|---|
-| `plan_strategy` + `tier` | `before_agent_start` | 一次 JEV 请求同时回答两题；设置任务阶段、工具集和候选模型 |
+| `plan_strategy` + `tier` | `before_agent_start` | 两次并行单问题 JEV 请求（互相隔离防耦合）；设置任务阶段、工具集和候选模型 |
 | `permission.action` | `tool_call` | 阶段门、确定性规则、JEV 裁决、人工兜底 |
 | `outcome` | `agent_before_settle` | 校验计划或最终交付物；结束或注入纠正并续跑 |
 | 分支恢复 | `session_start`、`session_tree` | 从当前活动分支恢复状态和工具集，清空任务批准缓存 |
@@ -103,12 +103,14 @@ abort、error、配置不可用等不能安全判定的 settle 路径恢复工�
 
 ## 4. 路由：plan strategy 与 tier
 
-### 4.1 一次请求回答两题
+### 4.1 两次并行单问题请求
 
-`before_agent_start` 把原始任务 prompt 截断和脱敏后发给 JEV：
+`before_agent_start` 把原始任务 prompt 截断和脱敏后，作为**两个独立的单问题 JEV 请求并行发出**：
 
-- `plan_strategy`：`direct`、`plan_only`、`plan_then_execute`；
-- `tier`：`small`、`normal`、`strong`。
+- `plan_strategy`：`direct`、`plan_only`、`plan_then_execute` —— 只判断执行结构（是否需要显式规划阶段）；
+- `tier`：`small`、`normal`、`strong` —— 只判断所需推理能力（调试深度、依赖交互、实现不确定性）。
+
+两个决策互不共享答案：workflow 分类不得影响难度分类（direct 但需 strong、multi-step 但只需 normal 都是合法组合）。任一侧失败只降级该侧（plan 侧回 direct、tier 侧保持当前模型），另一侧照常生效；延迟取两请求较慢者，用量合并后写入决策日志。
 
 低于 `PI_JEV_ROUTE_CONFIDENCE` 时：
 
@@ -173,7 +175,7 @@ Outcome 请求包含三题：
 
 1. **阶段门**：planning/plan_only 仅允许内置读工具和 allowlist 中的只读 shell；其他调用直接阻止。无人值守 benchmark 模式下（`benchmark` + 无 UI）本层同时要求与 fallback 相同的严格 argv 判定，避免前缀式 allowlist 在更早一层被组合命令绕过（§6.4）。
 2. **确定性规则**：高危 shell 模式直接阻止；内置读工具直接放行；命中当前任务批准缓存则放行。
-3. **JEV 裁决**：干净且已脱敏的工具输入可发送给 JEV。
+3. **JEV 裁决**：干净且已脱敏的工具输入以**结构化证据**形式发送给 JEV —— edit/write 只发操作元数据（`{operation, path, scope, content_size}`，不发代码正文：权限门判断授权与风险，不判断代码质量，同时省 token、防代码泄露与内容干扰）；bash/powershell 发完整脱敏命令与 `cwd`（命令本身就是风险所在）；其他工具退回脱敏序列化。
 4. **人工/fail-closed**：`ask`、低置信、敏感输入或远端失败时，有 UI 则询问用户；无 UI 则阻止（fail-closed）。无人值守策略只替换本层中显式 `ask`/低置信 `allow` 的确认环节（§6.4），失败与敏感输入始终阻止。
 
 配置缺失或无效不会关闭权限层。此时路由使用 direct/当前模型、outcome 自然结束，但工具权限仍执行确定性规则并在需要时人工确认；无 UI 时 fail-closed。

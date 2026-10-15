@@ -32,41 +32,52 @@ const CONFIG: JevConfig = {
 	unattendedPolicy: "fail-closed",
 }
 
-function routeResponse(plan: string, planConf: number, tier: string, tierConf: number): JevResponse {
-	return {
-		answers: {
-			plan_strategy: {
-				type: "choice",
-				choice: plan,
-				confidence: planConf,
-				probabilities: { direct: 0, plan_only: 0, plan_then_execute: 1 },
-			},
-			tier: { type: "choice", choice: tier, confidence: tierConf, probabilities: { small: 0, normal: 0, strong: 1 } },
-		},
-		model: "typesafe/jev-1.13",
-		usage: { cost: 0.00001, input_tokens: 100, output_tokens: 20 },
-		latencyMs: 12,
-	}
+/**
+ * Mock decide that answers each single-question route request by its key:
+ * the plan_strategy request gets the plan answer, the tier request the tier
+ * answer (each usage entry represents one hop).
+ */
+function routeResponse(plan: string, planConf: number, tier: string, tierConf: number) {
+	return vi.fn(async (request: JevDecideRequest): Promise<JevResponse> => {
+		const answers: JevResponse["answers"] =
+			request.questions["plan_strategy"] !== undefined
+				? {
+						plan_strategy: {
+							type: "choice",
+							choice: plan,
+							confidence: planConf,
+							probabilities: { direct: 0, plan_only: 0, plan_then_execute: 1 },
+						},
+					}
+				: { tier: { type: "choice", choice: tier, confidence: tierConf, probabilities: { small: 0, normal: 0, strong: 1 } } }
+		return { answers, model: "typesafe/jev-1.13", usage: { cost: 0.00001, input_tokens: 100, output_tokens: 20 }, latencyMs: 12 }
+	})
 }
 
 describe("decideRoute", () => {
-	it("asks both questions in one request", async () => {
-		const decide = vi.fn(async (request: JevDecideRequest) => {
-			expect(Object.keys(request.questions)).toEqual(["plan_strategy", "tier"])
-			expect(request.questions["plan_strategy"]).toBe(planStrategyQuestion)
-			expect(request.questions["tier"]).toBe(tierQuestion)
-			return routeResponse("plan_then_execute", 0.95, "strong", 0.9)
-		})
+	it("asks plan_strategy and tier in two independent single-question requests", async () => {
+		const decide = routeResponse("plan_then_execute", 0.95, "strong", 0.9)
 		const decision = await decideRoute(decide, CONFIG, "refactor the auth module", "normal")
+		expect(decide).toHaveBeenCalledTimes(2)
+		const seen = decide.mock.calls.map((call) => Object.keys(call[0].questions))
+		expect(seen).toContainEqual(["plan_strategy"])
+		expect(seen).toContainEqual(["tier"])
+		const planCall = decide.mock.calls.find((call) => call[0].questions["plan_strategy"] !== undefined)
+		expect(planCall?.[0].questions["plan_strategy"]).toBe(planStrategyQuestion)
+		expect(planCall?.[0].state).toEqual({ task_prompt: "refactor the auth module" })
+		const tierCall = decide.mock.calls.find((call) => call[0].questions["tier"] !== undefined)
+		expect(tierCall?.[0].questions["tier"]).toBe(tierQuestion)
+		expect(tierCall?.[0].state).toEqual({ task_prompt: "refactor the auth module" })
 		expect(decision).toMatchObject({ planStrategy: "plan_then_execute", tier: "strong", switchTier: true })
 		expect(decision.degradations).toEqual([])
 		expect(decision.latencyMs).toBe(12)
-		expect(decision.usage).toEqual({ cost: 0.00001, input_tokens: 100, output_tokens: 20 })
+		// Usage sums across the two parallel requests.
+		expect(decision.usage).toEqual({ cost: 0.00002, input_tokens: 200, output_tokens: 40 })
 	})
 
 	it("degrades to direct when plan confidence is below the threshold", async () => {
 		const decision = await decideRoute(
-			vi.fn(async () => routeResponse("plan_then_execute", 0.6, "strong", 0.9)),
+			routeResponse("plan_then_execute", 0.6, "strong", 0.9),
 			CONFIG,
 			"task",
 			"normal",
@@ -77,7 +88,7 @@ describe("decideRoute", () => {
 
 	it("keeps the current model when tier confidence is below the threshold", async () => {
 		const decision = await decideRoute(
-			vi.fn(async () => routeResponse("direct", 0.95, "strong", 0.5)),
+			routeResponse("direct", 0.95, "strong", 0.5),
 			CONFIG,
 			"task",
 			"small",
@@ -100,6 +111,28 @@ describe("decideRoute", () => {
 		expect(decision.errorReason).toBe("http_500")
 		expect(decision.latencyMs).toBeUndefined()
 		expect(decision.usage).toBeUndefined()
+	})
+
+	it("degrades only the failed side when one of the two requests fails", async () => {
+		const decide = vi.fn(async (request: JevDecideRequest): Promise<JevResponse> => {
+			if (request.questions["plan_strategy"] !== undefined) throw new JevError("http_500")
+			return {
+				answers: {
+					tier: { type: "choice", choice: "strong", confidence: 0.9, probabilities: { small: 0, normal: 0, strong: 1 } },
+				},
+				model: "typesafe/jev-1.13",
+				usage: { cost: 0.00001, input_tokens: 100, output_tokens: 20 },
+				latencyMs: 9,
+			}
+		})
+		const decision = await decideRoute(decide, CONFIG, "task", "normal")
+		expect(decision.planStrategy).toBe("direct")
+		expect(decision.tier).toBe("strong")
+		expect(decision.switchTier).toBe(true)
+		expect(decision.degradations.join(" ")).toContain("plan_strategy request failed")
+		expect(decision.errorReason).toBe("http_500")
+		expect(decision.latencyMs).toBe(9)
+		expect(decision.usage).toEqual({ cost: 0.00001, input_tokens: 100, output_tokens: 20 })
 	})
 })
 
