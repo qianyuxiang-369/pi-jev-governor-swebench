@@ -29,6 +29,7 @@ const CONFIG: JevConfig = {
 	outcomeGitDiff: true,
 	planAutoExecute: true,
 	logDir: "/tmp/.pi-jev",
+	unattendedPolicy: "fail-closed",
 }
 
 function routeResponse(plan: string, planConf: number, tier: string, tierConf: number): JevResponse {

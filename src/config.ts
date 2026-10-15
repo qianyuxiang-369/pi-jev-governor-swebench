@@ -17,6 +17,8 @@ export interface JevModels {
 	strong: string
 }
 
+export type UnattendedPolicy = "fail-closed" | "benchmark"
+
 export interface JevConfig {
 	url: string
 	apiKey: string
@@ -31,6 +33,8 @@ export interface JevConfig {
 	outcomeGitDiff: boolean
 	planAutoExecute: boolean
 	logDir: string
+	/** Behaviour when no UI is available for human confirmation. */
+	unattendedPolicy: UnattendedPolicy
 }
 
 export interface ConfigResult {
@@ -125,6 +129,15 @@ function loadModels(env: Record<string, string | undefined>): JevModels | undefi
 	return models
 }
 
+export const VALID_UNATTENDED_POLICIES: readonly UnattendedPolicy[] = ["fail-closed", "benchmark"]
+
+function parseUnattendedPolicy(value: string | undefined): UnattendedPolicy {
+	if (value === undefined || value.trim() === "") return "fail-closed"
+	const normalized = value.trim().toLowerCase()
+	if (VALID_UNATTENDED_POLICIES.includes(normalized as UnattendedPolicy)) return normalized as UnattendedPolicy
+	return "fail-closed"
+}
+
 export function loadConfig(options: LoadConfigOptions): ConfigResult {
 	const { env, flagEnabled } = options
 
@@ -193,6 +206,7 @@ export function loadConfig(options: LoadConfigOptions): ConfigResult {
 			outcomeGitDiff: parseBoolean(env["PI_JEV_OUTCOME_GIT_DIFF"], false),
 			planAutoExecute: parseBoolean(env["PI_JEV_PLAN_AUTO_EXECUTE"], true),
 			logDir: defaultLogDir(env, options.platform, options.homeDir),
+			unattendedPolicy: parseUnattendedPolicy(env["PI_JEV_UNATTENDED_POLICY"]),
 		},
 		unavailableReason: undefined,
 	}

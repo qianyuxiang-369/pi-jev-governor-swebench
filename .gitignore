@@ -4,3 +4,12 @@ dist/
 *.tsbuildinfo
 .DS_Store
 .env.local
+
+# eval/swebench runner artifacts
+__pycache__/
+eval/swebench/container-assets/
+eval/swebench/results/
+
+# swebench grading run logs & pytest cache
+eval/swebench/logs/
+.pytest_cache/

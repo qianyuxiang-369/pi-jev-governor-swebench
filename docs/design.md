@@ -171,10 +171,10 @@ Outcome 请求包含三题：
 
 每个 `tool_call` 按以下顺序裁决：
 
-1. **阶段门**：planning/plan_only 仅允许内置读工具和 allowlist 中的只读 shell；其他调用直接阻止。
+1. **阶段门**：planning/plan_only 仅允许内置读工具和 allowlist 中的只读 shell；其他调用直接阻止。无人值守 benchmark 模式下（`benchmark` + 无 UI）本层同时要求与 fallback 相同的严格 argv 判定，避免前缀式 allowlist 在更早一层被组合命令绕过（§6.4）。
 2. **确定性规则**：高危 shell 模式直接阻止；内置读工具直接放行；命中当前任务批准缓存则放行。
 3. **JEV 裁决**：干净且已脱敏的工具输入可发送给 JEV。
-4. **人工/fail-closed**：`ask`、低置信、敏感输入或远端失败时，有 UI 则询问用户；无 UI 则阻止。
+4. **人工/fail-closed**：`ask`、低置信、敏感输入或远端失败时，有 UI 则询问用户；无 UI 则阻止（fail-closed）。无人值守策略只替换本层中显式 `ask`/低置信 `allow` 的确认环节（§6.4），失败与敏感输入始终阻止。
 
 配置缺失或无效不会关闭权限层。此时路由使用 direct/当前模型、outcome 自然结束，但工具权限仍执行确定性规则并在需要时人工确认；无 UI 时 fail-closed。
 
@@ -196,6 +196,19 @@ v3 只提供四个用户选择：
 - `block`。
 
 缓存不持久化，且在每次 `before_agent_start` 和 `session_tree` 清空。敏感输入只允许一次或阻止，不提供缓存选项。
+
+### 6.4 无人值守策略
+
+`PI_JEV_UNATTENDED_POLICY=benchmark` 只为 headless 评测场景设计，默认 `fail-closed` 时行为与之前完全一致。它**只替换第 4 层的“无 UI 确认”**，不改变前 3 层与 `PI_JEV_PERMISSION_CONFIDENCE`。
+
+- 仅当 JEV 明确回答 `ask` 或低置信 `allow` 时才进入确定性 fallback；
+- JEV 失败/超时/不可用、敏感输入、无有效回答一律 fail-closed——“没有判断”不等于放行；
+- 确定性 fallback 默认阻止，只放行基准安全操作：测试命令；只读 shell（先按保守子集分词，再按 argv 级白名单检查参数，如 `find` 的执行/删除类断言、`git branch` 仅列举标志、`git diff/show` 拒绝 `--output`/`--ext-diff`/`--textconv`、`date` 拒绝 `-s` 及附着写法、`diff`/`sort`/`tree` 拒绝输出标志）；git 只读子命令；版本查询；真实路径位于仓库内的 edit/write/patch；
+- 参数语法过于丰富的命令（`sed`、`awk`、`fd`）不进入白名单——逐标志近似只会持续漏边界，需要时用 `head`/`grep`/`rg` 等替代；
+- shell 中 `$`、反引号、换行、`|`、`&`、`;`、`<`、`>`、`()`、`{}`、转义元字符以及**未引用的 glob**（`*`、`?`、`[`、`]`）一律拒绝：bash 在验证之后才展开 glob，被检查的 argv 可能与实际执行的不同；引号或反斜杠转义的 glob 为字面量，允许；
+- PowerShell 尚未单独解析，无人值守下直接阻止；
+- 仓库路径判定不跟随任何 symlink：拒绝原始 `..` 组件；逐组件 `lstat`，存在的组件必须是真实目录，symlink（含悬空）一律 fail-closed；只有缺失的文件尾部允许（其下不存在任何可被重定向的对象）；`.git` 元数据不可写（config/hooks/attributes 可让后续放行的 git 命令变成任意执行）；
+- 自动放行（`unattended_allow`）不写入批准摘要，不作为“人工批准”证据影响后续 JEV 判断。
 
 ## 7. 分支、resume 与用户接管
 
@@ -304,6 +317,7 @@ decisions-<sanitized-session-id>.jsonl
 | `PI_JEV_MAX_CORRECTIONS` | `2` | 任务共享预算，硬上限 2 |
 | `PI_JEV_OUTCOME_GIT_DIFF` | `false` | 是否发送 `git diff --stat` |
 | `PI_JEV_PLAN_AUTO_EXECUTE` | `true` | 计划通过后是否自动执行 |
+| `PI_JEV_UNATTENDED_POLICY` | `fail-closed` | 无 UI 确认时的兜底策略：`fail-closed` 或 `benchmark`（§6.4） |
 | `PI_JEV_LOG_DIR` | 平台状态目录 | 覆盖日志目录 |
 
 命令与界面：

@@ -299,6 +299,8 @@ export default function jevExtension(pi: ExtensionAPI): void {
 				secretLiterals: config === undefined ? [] : [config.apiKey],
 				...(config === undefined ? {} : { decide: (request) => getClient().decide(request, ctx.signal) }),
 				hasUI: ctx.hasUI,
+				cwd: ctx.cwd,
+				unattendedPolicy: config?.unattendedPolicy ?? "fail-closed",
 				ask: async (title, message, allowCache) => {
 					const options = allowCache
 						? ["Allow once", "Allow this exact call for this task", "Allow this tool for this task", "Block"]
@@ -317,6 +319,8 @@ export default function jevExtension(pi: ExtensionAPI): void {
 
 		if (verdict.source === "human_allow_exact_for_task") taskApprovedExact.add(approvalKey(call))
 		if (verdict.source === "human_allow_tool_for_task") taskApprovedTools.add(call.toolName)
+		// `unattended_allow` is deliberately absent: an automatic policy decision
+		// must not masquerade as human-approved evidence for later JEV calls.
 		if (["jev_allow", "human_allow_once", "human_allow_exact_for_task", "human_allow_tool_for_task"].includes(verdict.source)) {
 			const secrets = config === undefined ? [] : [config.apiKey]
 			approvedSummaries.push(`${call.toolName} ${truncateText(sanitizedPermissionInput(call, secrets), 120)}`)

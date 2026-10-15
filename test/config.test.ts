@@ -146,4 +146,24 @@ describe("loadConfig", () => {
 		expect(defaultLogDir({}, "darwin", "/Users/u")).toBe("/Users/u/Library/Application Support/pi-jev")
 		expect(defaultLogDir({ LOCALAPPDATA: "C:\\Users\\u\\AppData\\Local" }, "win32", "C:\\Users\\u")).toContain("pi-jev")
 	})
+
+	it("defaults unattendedPolicy to fail-closed", () => {
+		const { config } = load(VALID_ENV)
+		expect(config?.unattendedPolicy).toBe("fail-closed")
+	})
+
+	it("accepts benchmark unattended policy", () => {
+		const { config } = load({ ...VALID_ENV, PI_JEV_UNATTENDED_POLICY: "benchmark" })
+		expect(config?.unattendedPolicy).toBe("benchmark")
+	})
+
+	it("falls back to fail-closed for unknown unattended policy values", () => {
+		const { config } = load({ ...VALID_ENV, PI_JEV_UNATTENDED_POLICY: "allow-everything" })
+		expect(config?.unattendedPolicy).toBe("fail-closed")
+	})
+
+	it("accepts fail-closed unattended policy explicitly", () => {
+		const { config } = load({ ...VALID_ENV, PI_JEV_UNATTENDED_POLICY: "fail-closed" })
+		expect(config?.unattendedPolicy).toBe("fail-closed")
+	})
 })

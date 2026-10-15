@@ -19,6 +19,7 @@ const CONFIG: JevConfig = {
 	outcomeGitDiff: false,
 	planAutoExecute: true,
 	logDir: "/tmp/.pi-jev",
+	unattendedPolicy: "fail-closed",
 }
 
 const MESSAGES: EvidenceContextMessage[] = [
