@@ -157,6 +157,11 @@ describe("loadConfig", () => {
 		expect(config?.unattendedPolicy).toBe("benchmark")
 	})
 
+	it("accepts allow-all unattended policy", () => {
+		const { config } = load({ ...VALID_ENV, PI_JEV_UNATTENDED_POLICY: "allow-all" })
+		expect(config?.unattendedPolicy).toBe("allow-all")
+	})
+
 	it("falls back to fail-closed for unknown unattended policy values", () => {
 		const { config } = load({ ...VALID_ENV, PI_JEV_UNATTENDED_POLICY: "allow-everything" })
 		expect(config?.unattendedPolicy).toBe("fail-closed")

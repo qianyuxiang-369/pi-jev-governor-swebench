@@ -210,6 +210,8 @@ v3 只提供四个用户选择：
 - 仓库路径判定不跟随任何 symlink：拒绝原始 `..` 组件；逐组件 `lstat`，存在的组件必须是真实目录，symlink（含悬空）一律 fail-closed；只有缺失的文件尾部允许（其下不存在任何可被重定向的对象）；`.git` 元数据不可写（config/hooks/attributes 可让后续放行的 git 命令变成任意执行）；
 - 自动放行（`unattended_allow`）不写入批准摘要，不作为“人工批准”证据影响后续 JEV 判断。
 
+`PI_JEV_UNATTENDED_POLICY=allow-all` 是评测口径下的旁路档：无 UI 时 permission 管线在进入任何判定层之前直接放行（`unattended_allow_all`），不问 JEV、不走 argv 白名单，连 Layer 0/1（phase gate、hard-deny、敏感输入）也一并短路——被测对象只剩路由与结算两个决策点，JEV 判定开销与拦截重试税同时归零。每条放行仍写入决策日志（effective `allow (unattended allow-all policy)`）以保持审计链完整。交互会话（有 UI）不受此策略影响，其余档位行为不变。
+
 ## 7. 分支、resume 与用户接管
 
 `session_start` 和 `session_tree` 必须从 `ctx.sessionManager.getBranch()` 找当前活动分支最后一个 `jev-state` 条目，不能使用全会话 `getEntries()`。
@@ -317,7 +319,7 @@ decisions-<sanitized-session-id>.jsonl
 | `PI_JEV_MAX_CORRECTIONS` | `2` | 任务共享预算，硬上限 2 |
 | `PI_JEV_OUTCOME_GIT_DIFF` | `false` | 是否发送 `git diff --stat` |
 | `PI_JEV_PLAN_AUTO_EXECUTE` | `true` | 计划通过后是否自动执行 |
-| `PI_JEV_UNATTENDED_POLICY` | `fail-closed` | 无 UI 确认时的兜底策略：`fail-closed` 或 `benchmark`（§6.4） |
+| `PI_JEV_UNATTENDED_POLICY` | `fail-closed` | 无 UI 确认时的兜底策略：`fail-closed`、`benchmark`（§6.4）或 `allow-all`（评测旁路） |
 | `PI_JEV_LOG_DIR` | 平台状态目录 | 覆盖日志目录 |
 
 命令与界面：

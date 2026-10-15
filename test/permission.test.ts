@@ -319,6 +319,47 @@ describe("layer 2 — JEV adjudication", () => {
 	})
 })
 
+describe("allow-all unattended policy", () => {
+	it("passes every tool call locally without consulting JEV", async () => {
+		const decide = vi.fn(async () => {
+			throw new JevError("transport_or_schema_error")
+		})
+		const d = deps({ hasUI: false, cwd: CWD, unattendedPolicy: "allow-all", decide })
+		for (const call of [
+			bash("cd /testbed && pytest -x"),
+			bash("rm -rf /"),
+			bash("pip install requests"),
+			{ toolName: "edit", input: { path: "/etc/passwd" } },
+			{ toolName: "powershell", input: { command: "Remove-Item victim" } },
+			{ toolName: "mcp_fetch", input: { url: "https://example.com" } },
+		]) {
+			const verdict = await adjudicate(call, taskContext("planning"), d)
+			expect(verdict.block).toBe(false)
+			expect(verdict.source).toBe("unattended_allow_all")
+		}
+		expect(decide).not.toHaveBeenCalled()
+	})
+
+	it("logs a permission decision for each allowed call", async () => {
+		const onLog = vi.fn()
+		const d = deps({ hasUI: false, cwd: CWD, unattendedPolicy: "allow-all", onLog })
+		await adjudicate(bash("cd /testbed && python -m pytest"), taskContext(), d)
+		expect(onLog).toHaveBeenCalledTimes(1)
+		const entry = onLog.mock.calls[0]![0] as Omit<DecisionLogEntry, "timestamp">
+		expect(entry.decisionKind).toBe("permission")
+		expect(entry.effective).toContain("allow-all")
+	})
+
+	it("never engages in interactive mode", async () => {
+		// allow-all is unattended-only: with a UI the normal deterministic
+		// chain (including Layer 1 hard-deny) still applies.
+		const d = deps({ hasUI: true, unattendedPolicy: "allow-all" })
+		const verdict = await adjudicate(bash("rm -rf /"), taskContext(), d)
+		expect(verdict.block).toBe(true)
+		expect(verdict.source).toBe("hard_deny")
+	})
+})
+
 describe("isSafeCommand", () => {
 	it("allows common read-only commands", () => {
 		for (const command of ["ls -la", "cat package.json", "grep -r TODO src", "git diff", "git log --oneline", "rg pattern", "find . -name '*.ts'"]) {

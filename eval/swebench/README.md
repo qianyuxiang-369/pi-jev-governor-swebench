@@ -371,3 +371,16 @@ DOCKER_HOST=unix:///tmp/docker-rt.sock python grade.py \
 JuiceFS 上刚 copy 的大文件（node 二进制 123MB）元数据滞后几秒，tar 会误报 "file changed as we read it"：
 进程退出码 1，而 `--warning=no-file-changed` 只抑制警告文本、**不改变退出码**，`set -e` 下脚本中止。
 脚本内置重试（失败后 sleep 5 重跑一次，第二次文件状态已稳定必然成功，tar 内容完整）。
+
+### 5.14 P16 permission 层 allow-all 评测档（2026-10-15，用户决策）
+
+**背景**：P15 后用户确认评测口径——permission 决策不引入额外开销（JEV 判定 163 次 ≈$0.05–0.1 + bash_not_allowed 重试税 64 次），要求无人值守下统一放行。
+
+**实现**（新档位 `PI_JEV_UNATTENDED_POLICY=allow-all`）：
+- `src/permission.ts`：`adjudicate` 入口短路——无 UI 且 allow-all 时所有工具调用直接放行（`unattended_allow_all`），不问 JEV、不走 argv 白名单，Layer 0/1（phase gate/hard-deny/敏感输入）一并旁路；每条放行仍写决策日志（effective `allow (unattended allow-all policy)`）保持审计链完整。
+- `src/config.ts`：UnattendedPolicy 类型与 VALID 列表增加 `allow-all`。
+- `eval/swebench/run.py`：preflight 接受 `benchmark | allow-all`；manifest 的 unattended_policy 字段自动记录实际值。
+- 交互会话（有 UI）不受影响，默认 `fail-closed` 行为不变；`.env.local` 已切换 allow-all。
+- 语义影响：governor 与 vanilla 在 permission 层完全一致（零拦截、零重试税、零 JEV 判定开销），被测差异只剩 route + outcome 两个决策点；hard-deny/敏感输入在评测中不再生效（容器一次性、无真实凭据，风险可接受）。
+
+**验证**：vitest 196 passed（+4：config 解析 1 + permission 行为 3）、py 124 passed。

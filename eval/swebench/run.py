@@ -1373,9 +1373,9 @@ def main() -> None:
         if missing:
             sys.exit("governor runs require all tiers: missing "
                      + ", ".join(f"PI_JEV_MODEL_{t.upper()}" for t in missing))
-        if env_kv.get("PI_JEV_UNATTENDED_POLICY") != "benchmark":
-            sys.exit("governor runs require PI_JEV_UNATTENDED_POLICY=benchmark "
-                     "(without it the headless JEV ask path fails closed)")
+        if env_kv.get("PI_JEV_UNATTENDED_POLICY") not in ("benchmark", "allow-all"):
+            sys.exit("governor runs require PI_JEV_UNATTENDED_POLICY=benchmark or allow-all "
+                     "(without either the headless JEV ask path fails closed)")
         if not args.dry_run:
             distinct = sorted({tiers[t] for t in TIERS})
             if len(distinct) < 3:

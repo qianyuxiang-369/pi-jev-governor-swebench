@@ -250,6 +250,16 @@ export async function adjudicate(
 		})
 	}
 
+	// Allow-all unattended policy — evaluation-harness escape hatch: every
+	// tool call passes locally with no JEV round-trip and no allowlist
+	// vetting, including calls Layer 1 would hard-deny. The gate being
+	// measured is off, so routing/outcome decisions stay the only governor
+	// variables; interactive sessions and the other policies are unaffected.
+	if (!deps.hasUI && deps.unattendedPolicy === "allow-all") {
+		log("allow (unattended allow-all policy)")
+		return ALLOW("unattended_allow_all")
+	}
+
 	// Layer 0 — phase gate. During read-only phases this layer is complete:
 	// tools cannot write, and bash is restricted to the read-only allowlist.
 	// In unattended benchmark mode the gate additionally requires the strict

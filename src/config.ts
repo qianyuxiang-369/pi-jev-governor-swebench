@@ -17,7 +17,7 @@ export interface JevModels {
 	strong: string
 }
 
-export type UnattendedPolicy = "fail-closed" | "benchmark"
+export type UnattendedPolicy = "fail-closed" | "benchmark" | "allow-all"
 
 export interface JevConfig {
 	url: string
@@ -129,7 +129,7 @@ function loadModels(env: Record<string, string | undefined>): JevModels | undefi
 	return models
 }
 
-export const VALID_UNATTENDED_POLICIES: readonly UnattendedPolicy[] = ["fail-closed", "benchmark"]
+export const VALID_UNATTENDED_POLICIES: readonly UnattendedPolicy[] = ["fail-closed", "benchmark", "allow-all"]
 
 function parseUnattendedPolicy(value: string | undefined): UnattendedPolicy {
 	if (value === undefined || value.trim() === "") return "fail-closed"
