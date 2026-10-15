@@ -210,7 +210,7 @@ v3 只提供四个用户选择：
 - 仓库路径判定不跟随任何 symlink：拒绝原始 `..` 组件；逐组件 `lstat`，存在的组件必须是真实目录，symlink（含悬空）一律 fail-closed；只有缺失的文件尾部允许（其下不存在任何可被重定向的对象）；`.git` 元数据不可写（config/hooks/attributes 可让后续放行的 git 命令变成任意执行）；
 - 自动放行（`unattended_allow`）不写入批准摘要，不作为“人工批准”证据影响后续 JEV 判断。
 
-`PI_JEV_UNATTENDED_POLICY=allow-all` 是评测口径下的旁路档：无 UI 时 permission 管线在进入任何判定层之前直接放行（`unattended_allow_all`），不问 JEV、不走 argv 白名单，连 Layer 0/1（phase gate、hard-deny、敏感输入）也一并短路——被测对象只剩路由与结算两个决策点，JEV 判定开销与拦截重试税同时归零。每条放行仍写入决策日志（effective `allow (unattended allow-all policy)`）以保持审计链完整。交互会话（有 UI）不受此策略影响，其余档位行为不变。
+`PI_JEV_UNATTENDED_POLICY=allow-all` 是评测口径的影子档（shadow mode）：判定链照常完整执行——phase gate、hard-deny、敏感输入、JEV 裁决、无人值守白名单全部照跑并照常写入决策日志（保留 block 分布与拦截原因供离线分析）——但判定结果不执行：凡 block 一律被覆写为放行（source `allow_all_override`，日志记 `allow (allow-all override of <source>)`），permission 从不阻塞评测运行。交互会话（有 UI）不受此策略影响，其余档位行为不变。
 
 ## 7. 分支、resume 与用户接管
 

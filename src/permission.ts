@@ -235,7 +235,7 @@ export function isHardDenied(command: string): boolean {
  * Adjudicate one tool call. Returns the verdict; callers map
  * `block: false` to an undefined hook result.
  */
-export async function adjudicate(
+async function adjudicateDecide(
 	call: PermissionCall,
 	task: PermissionTaskContext,
 	deps: PermissionDeps,
@@ -248,16 +248,6 @@ export async function adjudicate(
 			effective,
 			...extra,
 		})
-	}
-
-	// Allow-all unattended policy — evaluation-harness escape hatch: every
-	// tool call passes locally with no JEV round-trip and no allowlist
-	// vetting, including calls Layer 1 would hard-deny. The gate being
-	// measured is off, so routing/outcome decisions stay the only governor
-	// variables; interactive sessions and the other policies are unaffected.
-	if (!deps.hasUI && deps.unattendedPolicy === "allow-all") {
-		log("allow (unattended allow-all policy)")
-		return ALLOW("unattended_allow_all")
 	}
 
 	// Layer 0 — phase gate. During read-only phases this layer is complete:
@@ -417,6 +407,34 @@ export async function adjudicate(
 	}
 	const verdict = BLOCK("human_block", "Blocked by user")
 	log("block (human)")
+	return verdict
+}
+
+/**
+ * Public entry — adjudication with the allow-all shadow override.
+ *
+ * With `PI_JEV_UNATTENDED_POLICY=allow-all` and no UI, the full chain still
+ * runs and every verdict — including blocks from the phase gate, hard-deny,
+ * sensitive checks, and the unattended fallback — is logged for offline
+ * analysis, but blocks are not enforced: the evaluation policy overrides
+ * them so permission never gates the run. Interactive sessions and the
+ * other policies are unaffected.
+ */
+export async function adjudicate(
+	call: PermissionCall,
+	task: PermissionTaskContext,
+	deps: PermissionDeps,
+): Promise<PermissionVerdict> {
+	const verdict = await adjudicateDecide(call, task, deps)
+	if (verdict.block && !deps.hasUI && deps.unattendedPolicy === "allow-all") {
+		deps.onLog({
+			decisionKind: "permission",
+			taskId: task.taskId,
+			questions: ["action"],
+			effective: `allow (allow-all override of ${verdict.source})`,
+		})
+		return { block: false, source: "allow_all_override" }
+	}
 	return verdict
 }
 

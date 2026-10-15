@@ -377,10 +377,10 @@ JuiceFS 上刚 copy 的大文件（node 二进制 123MB）元数据滞后几秒�
 **背景**：P15 后用户确认评测口径——permission 决策不引入额外开销（JEV 判定 163 次 ≈$0.05–0.1 + bash_not_allowed 重试税 64 次），要求无人值守下统一放行。
 
 **实现**（新档位 `PI_JEV_UNATTENDED_POLICY=allow-all`）：
-- `src/permission.ts`：`adjudicate` 入口短路——无 UI 且 allow-all 时所有工具调用直接放行（`unattended_allow_all`），不问 JEV、不走 argv 白名单，Layer 0/1（phase gate/hard-deny/敏感输入）一并旁路；每条放行仍写决策日志（effective `allow (unattended allow-all policy)`）保持审计链完整。
+- `src/permission.ts`：shadow mode——`adjudicate` 拆为「判定主体 `adjudicateDecide` + 公共入口 wrapper」：判定链照常完整执行并记录（phase gate/hard-deny/敏感输入/JEV 裁决/无人值守白名单的全部结论照常入日志，保留 block 分布与拦截原因供离线分析），但判定结果不执行：无 UI 且 allow-all 时凡 block 一律覆写为放行（source `allow_all_override`），并补一条 `allow (allow-all override of <source>)` 决策日志。JEV 判定的 API 开销仍产生（判定照跑），但拦截重试税归零（block 不再反钩 agent）。
 - `src/config.ts`：UnattendedPolicy 类型与 VALID 列表增加 `allow-all`。
 - `eval/swebench/run.py`：preflight 接受 `benchmark | allow-all`；manifest 的 unattended_policy 字段自动记录实际值。
 - 交互会话（有 UI）不受影响，默认 `fail-closed` 行为不变；`.env.local` 已切换 allow-all。
-- 语义影响：governor 与 vanilla 在 permission 层完全一致（零拦截、零重试税、零 JEV 判定开销），被测差异只剩 route + outcome 两个决策点；hard-deny/敏感输入在评测中不再生效（容器一次性、无真实凭据，风险可接受）。
+- 语义影响：governor 与 vanilla 在 permission 层的实际执行完全一致（零拦截、零重试税），但判定数据完整保留（shadow 记录 block 分布）；JEV 判定开销仍在（≈$0.05–0.1/8 run），hard-deny/敏感输入的判定照跑但不生效（容器一次性、无真实凭据，风险可接受）。
 
-**验证**：vitest 196 passed（+4：config 解析 1 + permission 行为 3）、py 124 passed。
+**验证**：vitest 196 passed（shadow 语义 3 测试：判定照跑+block 只记录不执行 / allow 原样透传无 override 记录 / 交互模式不生效）、py 124 passed。

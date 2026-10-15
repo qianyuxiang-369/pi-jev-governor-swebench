@@ -319,12 +319,13 @@ describe("layer 2 — JEV adjudication", () => {
 	})
 })
 
-describe("allow-all unattended policy", () => {
-	it("passes every tool call locally without consulting JEV", async () => {
+describe("allow-all unattended policy (shadow mode)", () => {
+	it("runs the full adjudication but overrides blocks instead of enforcing them", async () => {
 		const decide = vi.fn(async () => {
 			throw new JevError("transport_or_schema_error")
 		})
-		const d = deps({ hasUI: false, cwd: CWD, unattendedPolicy: "allow-all", decide })
+		const onLog = vi.fn()
+		const d = deps({ hasUI: false, cwd: CWD, unattendedPolicy: "allow-all", decide, onLog })
 		for (const call of [
 			bash("cd /testbed && pytest -x"),
 			bash("rm -rf /"),
@@ -333,21 +334,27 @@ describe("allow-all unattended policy", () => {
 			{ toolName: "powershell", input: { command: "Remove-Item victim" } },
 			{ toolName: "mcp_fetch", input: { url: "https://example.com" } },
 		]) {
-			const verdict = await adjudicate(call, taskContext("planning"), d)
+			const verdict = await adjudicate(call, taskContext(), d)
 			expect(verdict.block).toBe(false)
-			expect(verdict.source).toBe("unattended_allow_all")
+			expect(verdict.source).toBe("allow_all_override")
 		}
-		expect(decide).not.toHaveBeenCalled()
+		// The chain really ran: JEV was consulted for the non-locally-decided
+		// calls, and every adjudicated block was logged before the override.
+		expect(decide).toHaveBeenCalled()
+		const entries = onLog.mock.calls.map((c) => c[0] as Omit<DecisionLogEntry, "timestamp">)
+		expect(entries.some((e) => e.effective.startsWith("block"))).toBe(true)
+		expect(entries.filter((e) => e.effective.startsWith("allow (allow-all override"))).toHaveLength(6)
 	})
 
-	it("logs a permission decision for each allowed call", async () => {
+	it("passes allow verdicts through without an override record", async () => {
+		const decide = vi.fn(async () => permissionResponse("allow", 0.95))
 		const onLog = vi.fn()
-		const d = deps({ hasUI: false, cwd: CWD, unattendedPolicy: "allow-all", onLog })
-		await adjudicate(bash("cd /testbed && python -m pytest"), taskContext(), d)
-		expect(onLog).toHaveBeenCalledTimes(1)
-		const entry = onLog.mock.calls[0]![0] as Omit<DecisionLogEntry, "timestamp">
-		expect(entry.decisionKind).toBe("permission")
-		expect(entry.effective).toContain("allow-all")
+		const d = deps({ hasUI: false, cwd: CWD, unattendedPolicy: "allow-all", decide, onLog })
+		const verdict = await adjudicate(bash("pytest -q"), taskContext(), d)
+		expect(verdict.block).toBe(false)
+		expect(verdict.source).not.toBe("allow_all_override")
+		const entries = onLog.mock.calls.map((c) => c[0] as Omit<DecisionLogEntry, "timestamp">)
+		expect(entries.some((e) => e.effective.startsWith("allow (allow-all override"))).toBe(false)
 	})
 
 	it("never engages in interactive mode", async () => {
