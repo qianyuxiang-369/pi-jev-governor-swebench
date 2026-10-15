@@ -78,6 +78,12 @@ def fake_inspect(mapping):
     return _inspect
 
 
+def fake_probe(mapping):
+    def _probe(tag):
+        return mapping.get(tag)
+    return _probe
+
+
 class TestAnalyzeRun:
     def test_all_ok(self, tmp_path):
         write_instance(tmp_path, "governor", "task-1")
@@ -109,6 +115,59 @@ class TestAnalyzeRun:
         lines, ok = ci.analyze_run(tmp_path, fake_inspect({"img-task-1": "sha256:other"}))
         assert not ok
         assert any(line.startswith("MISMATCH") for line in lines)
+
+    def test_docker_rt_duplicate_ids_same_head_pass(self, tmp_path):
+        # docker-rt reports a distinct image_id for every copy of the same
+        # tar, so one tag legitimately maps to several ids inside a run
+        # (smoke-03: six tags, twelve records, all valid). What must agree is
+        # the content fingerprint image_head, plus a live probe of the tree
+        # the tag currently resolves to.
+        write_instance(tmp_path, "vanilla", "task-1", image="img", image_id="sha256:aaa",
+                       image_head="h1")
+        write_instance(tmp_path, "governor", "task-1", image="img", image_id="sha256:bbb",
+                       image_head="h1")
+        write_manifest(tmp_path, "vanilla", ["task-1"])
+        write_manifest(tmp_path, "governor", ["task-1"])
+        lines, ok = ci.analyze_run(tmp_path, fake_inspect({"img": "sha256:aaa"}),
+                                   probe=fake_probe({"img": "h1"}))
+        assert ok
+        assert any(line.startswith("OK") for line in lines)
+
+    def test_moved_tree_head_fails(self, tmp_path):
+        # The tag now resolves to a tree with a different /testbed HEAD: real
+        # content drift, regardless of any image_id match.
+        write_instance(tmp_path, "governor", "task-1", image="img", image_id="sha256:1",
+                       image_head="h1")
+        write_manifest(tmp_path, "governor", ["task-1"])
+        lines, ok = ci.analyze_run(tmp_path, fake_inspect({"img": "sha256:1"}),
+                                   probe=fake_probe({"img": "h2"}))
+        assert not ok
+        assert any(line.startswith("MISMATCH") for line in lines)
+
+    def test_mixed_heads_fail(self, tmp_path):
+        # Records inside one run map the same tag to two different /testbed
+        # trees: the run cannot be graded as one.
+        write_instance(tmp_path, "vanilla", "task-1", image="img", image_id="sha256:1",
+                       image_head="h1")
+        write_instance(tmp_path, "governor", "task-1", image="img", image_id="sha256:2",
+                       image_head="h2")
+        write_manifest(tmp_path, "vanilla", ["task-1"])
+        write_manifest(tmp_path, "governor", ["task-1"])
+        lines, ok = ci.analyze_run(tmp_path, fake_inspect({"img": "sha256:1"}),
+                                   probe=fake_probe({"img": "h1"}))
+        assert not ok
+        assert any(line.startswith("MIXED") for line in lines)
+
+    def test_unprobeable_tag_fails(self, tmp_path):
+        # Fail closed: the tag still resolves but the current tree cannot be
+        # measured, so consistency with the recorded run is unproven.
+        write_instance(tmp_path, "governor", "task-1", image="img", image_id="sha256:1",
+                       image_head="h1")
+        write_manifest(tmp_path, "governor", ["task-1"])
+        lines, ok = ci.analyze_run(tmp_path, fake_inspect({"img": "sha256:1"}),
+                                   probe=fake_probe({}))
+        assert not ok
+        assert any(line.startswith("PROBE-FAIL") for line in lines)
 
     def test_planned_instance_without_metadata_fails(self, tmp_path):
         write_instance(tmp_path, "governor", "task-1")

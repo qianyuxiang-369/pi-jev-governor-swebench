@@ -270,6 +270,26 @@ describe("layer 2 — JEV adjudication", () => {
 		expect(verdict.source).toBe("human_allow_exact_for_task")
 	})
 
+	it("does not flag code edits that merely reference self.env (smoke-03 regression)", () => {
+		// `\.env\b` matched the `.env` inside `self.env`: editing Sphinx source
+		// (which passes `self.env` through nearly every method) was flagged as
+		// sensitive input 65 times in smoke-03, the agent never got an edit
+		// through, and the task went unsolved at 4.6x the vanilla cost.
+		const edit = {
+			toolName: "edit",
+			input: {
+				path: "/testbed/sphinx/domains/python.py",
+				edits: [{ oldText: "annotations = _parse_annotation(typ, self.env)", newText: "x" }],
+			},
+		}
+		expect(sensitivePermissionInput(edit, [])).toBe(false)
+	})
+
+	it("still flags a standalone .env path after the self.env fix", () => {
+		const read = { toolName: "read", input: { path: "/app/.env" } }
+		expect(sensitivePermissionInput(read, [])).toBe(true)
+	})
+
 	it("keeps credential-bearing shell commands local", async () => {
 		const decide = vi.fn(async () => permissionResponse("allow", 1))
 		const ask = vi.fn(async () => "allow_exact_for_task" as HumanChoice)

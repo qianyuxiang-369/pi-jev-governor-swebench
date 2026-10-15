@@ -356,6 +356,10 @@ DOCKER_HOST=unix:///tmp/docker-rt.sock python grade.py \
 
 数据质量观察：agent 创建了空 test_fix.py（违反 prompt 约束「不建测试文件」）被 `git add -A` 带进 patch——对判分无害，但 patch 纯净度靠 prompt 自觉执行不可靠（记录观察，暂不加固）。
 
+**P14 续跑（smoke-02，2 题 × vanilla+governor，2026-10-15）**：django-10999 + xarray-3677，4/4 success、check_images 与判分零错误。**路由首次真实切换**：governor django 题初始 plus → route 成功切 flash（15 次全 flash，$0.0015 vs vanilla $0.0045，省 67%）；xarray 题 route 建议 0.56 < 0.8 被拦、保持 plus（$0.0312 vs $0.0245，JEV 决策 30 次开销）。判分两组完全一致（xarray resolved、django unresolved 各 5 failures）——路由/拦截未影响解题能力。初始 normal 改动后单题成本从 $0.344 降至 $0.0015–0.031。代码已入库推送（commit daf2ca8 → qianyuxiang-369/pi-jev-governor-swebench，SSH key 见 memory_doc §5.17）。
+
+**P15（smoke-03，6 题 × vanilla+governor，2026-10-15）**：sphinx-9591 / pytest-6202 / sympy-17139（easy）+ django-12262 / django-14122 / sklearn-14894（medium），12/12 success、判分零错误。vanilla 6/6 resolved，governor 5/6（sphinx-9591 unresolved）。成本 vanilla $0.228 vs governor $0.826（3.6×）。归因三项：① `SENSITIVE_TOOL_PATTERN` 的 `\.env\b` 误伤代码内 `self.env`——sphinx-9591 被误拦 65 次（edit 34 / write 17 / bash 14），编辑无法落地 → 成本 4.6× 且未解出；已修复（`(?<!\w)\.env\b` + 回归测试，见 src/evidence.ts）。② django-14122 36 次 `bash_not_allowed`（`cd /testbed && …` 组合命令与白名单不匹配的重试税，设计内行为，未改）。③ 路由 6 题全部未触发切换（tier 置信度 0.11–0.38 < 0.8），JEV 决策开销 ≈$0.010。check_images 判据升级：docker-rt 下同 tag 多副本 image_id 属正常（12 条记录 6 tag 互不相同），判定改用 image_head 内容指纹（同 tag 唯一 + `docker run --rm --entrypoint git <tag> git -C /testbed rev-parse HEAD` 实时探针），老 metadata 无 image_head 时回退 image_id 比较。单测 124（py）+ 192（TS）。
+
 ### 5.12 留待 pilot 的决策点
 
 - [ ] 并发度：当前单容器串行；docker-rt 单 daemon 下 `-w N` 的资源限制留 pilot 实测。

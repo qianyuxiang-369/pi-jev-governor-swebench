@@ -18,7 +18,12 @@ export interface EvidenceContextMessage {
 	isError?: boolean
 }
 
-export const SENSITIVE_TOOL_PATTERN = /(?:\.env\b|credentials|\.pem\b|\.key\b|id_rsa)/i
+// The .env branch requires a non-word character before the dot: `\.env\b`
+// also matched the `.env` inside `self.env` (and every other `x.env` member
+// access), so in smoke-03 editing Sphinx source was flagged as sensitive
+// input 65 times and the task went unsolved. A standalone `.env` path
+// (`cat .env`, `/app/.env`) still matches.
+export const SENSITIVE_TOOL_PATTERN = /(?<!\w)\.env\b|credentials|\.pem\b|\.key\b|id_rsa/i
 export const SENSITIVE_KEY_PATTERN = /api.?key|authorization|password|secret|access.?token/i
 export const SENSITIVE_TOOL_OMITTED = "Sensitive tool evidence omitted"
 /**

@@ -10,8 +10,9 @@ silently measures the wrong thing. Run this before `swebench eval`:
     python check_images.py results/pilot-01
 
 Exit code is non-zero when any recorded image is missing or has moved, when one
-tag resolved to more than one digest inside the same run (patches produced
-against different trees), when the run itself is structurally incomplete: an
+tag resolved to more than one digest inside the same run, when one tag mapped to
+different /testbed trees inside the same run (patches produced against different
+trees), when the run itself is structurally incomplete: an
 unreadable or absent manifest, an empty planned set, a planned instance
 without metadata or without a recorded outcome, a recorded outcome without an
 image digest or patch.diff, or metadata for an instance no manifest lists, or
@@ -42,10 +43,33 @@ def inspect_image_id(tag: str) -> str | None:
     return res.stdout.strip() or None
 
 
-def analyze_run(run_dir: Path, inspect=inspect_image_id) -> tuple[list[str], bool]:
-    """Full structural + digest check. Returns (report lines, ok).
+def probe_image_head(tag: str) -> str | None:
+    """Measure the /testbed git HEAD of the tree `tag` currently resolves to.
 
-    `inspect` is injectable so the analysis is testable without docker.
+    This is the content fingerprint of the tree a grading container spawned
+    from this tag would run in. It deliberately avoids image_id, which
+    docker-rt reports differently for every copy of the same tar. Read-only:
+    a --rm container prints the HEAD and is removed immediately.
+    """
+    try:
+        res = subprocess.run(
+            ["docker", "run", "--rm", "--entrypoint", "git", tag,
+             "-C", "/testbed", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=300,
+        )
+    except Exception:
+        return None
+    if res.returncode != 0:
+        return None
+    return res.stdout.strip() or None
+
+
+def analyze_run(run_dir: Path, inspect=inspect_image_id,
+                probe=probe_image_head) -> tuple[list[str], bool]:
+    """Full structural + content-consistency check. Returns (report lines, ok).
+
+    `inspect` and `probe` are injectable so the analysis is testable without
+    docker.
     """
     lines: list[str] = []
     problems = 0
@@ -202,41 +226,82 @@ def analyze_run(run_dir: Path, inspect=inspect_image_id) -> tuple[list[str], boo
                          "(no recorded outcome in this run)")
             problems += 1
 
-    # (3) Digest consistency: one run must not mix digests for one tag, and the
-    # local tag must still point at the recorded digest.
-    by_tag: dict[str, set[str]] = {}
+    # (3) Content-tree consistency: every grading container is spawned from
+    # the dataset image tag, so the tag must resolve to the same /testbed tree
+    # the agent worked in. image_id is NOT usable evidence here: docker-rt
+    # reports a distinct id for every copy of the same tar, so one tag
+    # legitimately maps to several ids inside a run (observed in smoke-03:
+    # six tags, twelve records, all valid). The recorded image_head -- git
+    # HEAD of /testbed measured inside the run container -- is the run-side
+    # fingerprint, and the tag's current tree is probed the same way; metadata
+    # predating image_head falls back to the image_id comparison.
+    heads_by_tag: dict[str, set[str]] = {}
+    ids_by_tag: dict[str, set[str]] = {}
     for meta in records.values():
         image, image_id = meta.get("image"), meta.get("image_id")
         if image and image_id:
-            by_tag.setdefault(image, set()).add(image_id)
+            ids_by_tag.setdefault(image, set()).add(image_id)
+        head = meta.get("image_head")
+        if image and head:
+            heads_by_tag.setdefault(image, set()).add(str(head))
 
-    if not by_tag:
+    tags = sorted(set(ids_by_tag) | set(heads_by_tag))
+    if not tags:
         lines.append(f"no image/image_id pairs recorded in {len(records)} metadata file(s)")
         return lines, False
 
     ok = mismatched = missing = mixed = 0
-    for image, ids in sorted(by_tag.items()):
-        if len(ids) > 1:
-            # A set-membership check against the local digest would silently
-            # pass this: the patches inside this run were produced against two
-            # different trees, so the run cannot be graded as one.
-            mixed += 1
-            lines.append(f"MIXED    {image}  recorded digests: {sorted(ids)}\n"
-                         "  one tag resolved to different digests inside this run")
-        current = inspect(image)
-        if current is None:
-            missing += 1
-            lines.append(f"MISSING  {image}  (recorded {sorted(ids)})")
-        elif len(ids) == 1 and current in ids:
-            ok += 1
-            lines.append(f"OK       {image}  {current}")
-        elif current not in ids:
-            mismatched += 1
-            lines.append(f"MISMATCH {image}\n  recorded: {sorted(ids)}\n  current:  {current}")
-        # current in ids with len(ids) > 1 was already reported as MIXED.
+    for image in tags:
+        heads, ids = heads_by_tag.get(image) or set(), ids_by_tag.get(image) or set()
+        if heads:
+            # Content fingerprint path (docker-rt safe).
+            if len(heads) > 1:
+                # Patches inside this run were produced against two different
+                # /testbed trees: the run cannot be graded as one.
+                mixed += 1
+                lines.append(f"MIXED    {image}  recorded heads: {sorted(heads)}\n"
+                             "  one tag mapped to different /testbed trees inside this run")
+            if inspect(image) is None:
+                missing += 1
+                lines.append(f"MISSING  {image}  (recorded heads: {sorted(heads)})")
+                continue
+            probed = probe(image)
+            if probed is None:
+                # Fail closed: without a live measurement the current tree is
+                # unproven, even though the tag still resolves.
+                mismatched += 1
+                lines.append(f"PROBE-FAIL {image}: could not measure the /testbed HEAD "
+                             "of the tree this tag resolves to")
+            elif heads == {probed}:
+                ok += 1
+                lines.append(f"OK       {image}  head {probed}")
+            else:
+                mismatched += 1
+                lines.append(f"MISMATCH {image}\n  recorded head(s): {sorted(heads)}\n"
+                             f"  current tree HEAD: {probed}")
+        else:
+            # Legacy path: metadata predating image_head.
+            if len(ids) > 1:
+                # A set-membership check against the local digest would silently
+                # pass this: the patches inside this run were produced against two
+                # different trees, so the run cannot be graded as one.
+                mixed += 1
+                lines.append(f"MIXED    {image}  recorded digests: {sorted(ids)}\n"
+                             "  one tag resolved to different digests inside this run")
+            current = inspect(image)
+            if current is None:
+                missing += 1
+                lines.append(f"MISSING  {image}  (recorded {sorted(ids)})")
+            elif len(ids) == 1 and current in ids:
+                ok += 1
+                lines.append(f"OK       {image}  {current}")
+            elif current not in ids:
+                mismatched += 1
+                lines.append(f"MISMATCH {image}\n  recorded: {sorted(ids)}\n  current:  {current}")
+            # current in ids with len(ids) > 1 was already reported as MIXED.
 
     lines.append(f"\n{ok} ok, {mismatched} mismatched, {missing} missing, {mixed} mixed, "
-                 f"{problems} structural ({len(by_tag)} image tag(s), "
+                 f"{problems} structural ({len(tags)} image tag(s), "
                  f"{len(records)} metadata file(s))")
     bad = bool(mismatched or missing or mixed or problems)
     if bad:
